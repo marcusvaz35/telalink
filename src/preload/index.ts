@@ -76,7 +76,14 @@ const api = {
     const listener = (_e: unknown, requestId: string) => cb(requestId)
     ipcRenderer.on('signal:web-connected', listener)
     return () => ipcRenderer.removeListener('signal:web-connected', listener)
-  }
+  },
+
+  onUpdateAvailable: (cb: (info: { version: string; url: string; notes: string }) => void) => {
+    const listener = (_e: unknown, info: { version: string; url: string; notes: string }) => cb(info)
+    ipcRenderer.on('update:available', listener)
+    return () => ipcRenderer.removeListener('update:available', listener)
+  },
+  openUpdateDownload: (url: string): Promise<void> => ipcRenderer.invoke('update:open-download', url)
 }
 
 contextBridge.exposeInMainWorld('telalink', api)

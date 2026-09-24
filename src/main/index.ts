@@ -1,4 +1,4 @@
-import { app, BrowserWindow, desktopCapturer, ipcMain, dialog, screen } from 'electron'
+import { app, BrowserWindow, desktopCapturer, ipcMain, dialog, screen, shell } from 'electron'
 import { join } from 'path'
 import { writeFile } from 'fs/promises'
 import { is } from './platform'
@@ -7,6 +7,7 @@ import { Discovery, type IDiscovery } from './discovery'
 import { DiscoveryMac } from './discoveryMac'
 import { Signaling } from './signaling'
 import { getLanIp } from './network'
+import { checkForUpdate } from './updateCheck'
 import type { DeviceInfo, RequestKind, ScreenSource, SignalMessage } from '../shared/types'
 
 if (process.env['TELALINK_DEBUG_PORT']) {
@@ -233,6 +234,10 @@ function registerIpc(): void {
   ipcMain.handle('webshare:cancel', (_e, requestId: string) => {
     signaling.cancelWebSession(requestId)
   })
+
+  ipcMain.handle('update:open-download', (_e, url: string) => {
+    shell.openExternal(url)
+  })
 }
 
 app.whenReady().then(async () => {
@@ -242,6 +247,12 @@ app.whenReady().then(async () => {
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  })
+
+  // Checa uma vez por sessão — sem instalar nada sozinho: só avisa e abre o
+  // link do instalador certo pro sistema operacional quando clicarem.
+  checkForUpdate().then((info) => {
+    if (info) broadcast('update:available', info)
   })
 })
 

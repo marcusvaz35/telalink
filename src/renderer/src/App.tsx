@@ -18,6 +18,7 @@ import { ShareControlBar } from './components/ShareControlBar'
 import { ConnectionRequestModal } from './components/ConnectionRequestModal'
 import { IncomingSharePicker } from './components/IncomingSharePicker'
 import { Toast } from './components/Toast'
+import { UpdateBanner } from './components/UpdateBanner'
 
 type View = 'home' | 'share-setup' | 'receive' | 'sharing' | 'web-share'
 
@@ -49,6 +50,7 @@ export default function App(): JSX.Element {
   const [device, setDevice] = useState<DeviceInfo | null>(null)
   const [devices, setDevices] = useState<DiscoveredDevice[]>([])
   const [view, setView] = useState<View>('home')
+  const [updateInfo, setUpdateInfo] = useState<{ version: string; url: string } | null>(null)
   const [toast, setToast] = useState<{ message: string; tone: 'info' | 'error' } | null>(null)
   const [outgoingBusyId, setOutgoingBusyId] = useState<string | null>(null)
   const [incomingRequest, setIncomingRequest] = useState<IncomingRequestPayload | null>(null)
@@ -214,6 +216,10 @@ export default function App(): JSX.Element {
       })
     })
 
+    const offUpdateAvailable = window.telalink.onUpdateAvailable((info) => {
+      setUpdateInfo({ version: info.version, url: info.url })
+    })
+
     return () => {
       offDevices()
       offIncoming()
@@ -222,6 +228,7 @@ export default function App(): JSX.Element {
       offClosed()
       offSwapNavigate()
       offWebConnected()
+      offUpdateAvailable()
     }
   }, [cleanupSession, notify, openViewerFor, startSharingFlow])
 
@@ -330,6 +337,14 @@ export default function App(): JSX.Element {
 
   return (
     <div style={{ height: '100%' }}>
+      {updateInfo && (
+        <UpdateBanner
+          version={updateInfo.version}
+          onDownload={() => window.telalink.openUpdateDownload(updateInfo.url)}
+          onDismiss={() => setUpdateInfo(null)}
+        />
+      )}
+
       {view === 'home' && (
         <HomeScreen
           device={device}
