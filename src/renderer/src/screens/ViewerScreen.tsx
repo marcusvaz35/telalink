@@ -60,17 +60,15 @@ export function ViewerScreen({ remoteStream, peerSession, peerName, onSwap, onDi
       const vh = video.videoHeight
       if (!vw || !vh) return
 
-      // Sempre publica em 1920x1080 fixo pro Resolume, mesmo que a tela
-      // recebida esteja em outra resolução — encaixa mantendo a proporção
-      // (com tarjas pretas se precisar) em vez de esticar/distorcer.
-      const scale = Math.min(TEXTURE_WIDTH / vw, TEXTURE_HEIGHT / vh)
+      // Sempre publica em 1920x1080 fixo pro Resolume, preenchendo o quadro
+      // inteiro (sem tarja/transparência nas bordas) — corta o excesso em vez
+      // de encaixar com sobra, já que é pra ir direto pro telão.
+      const scale = Math.max(TEXTURE_WIDTH / vw, TEXTURE_HEIGHT / vh)
       const drawWidth = Math.round(vw * scale)
       const drawHeight = Math.round(vh * scale)
       const offsetX = Math.round((TEXTURE_WIDTH - drawWidth) / 2)
       const offsetY = Math.round((TEXTURE_HEIGHT - drawHeight) / 2)
 
-      ctx.fillStyle = '#000'
-      ctx.fillRect(0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT)
       ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight)
 
       const { data } = ctx.getImageData(0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT)
