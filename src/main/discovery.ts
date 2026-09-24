@@ -4,8 +4,8 @@ import type { DeviceInfo, DeviceType, DiscoveredDevice } from '../shared/types'
 import { store } from './store'
 
 const SERVICE_TYPE = 'telalink'
-const STALE_MS = 15_000
-const SWEEP_MS = 5_000
+const STALE_MS = 5 * 60_000
+const SWEEP_MS = 15_000
 
 function isIpLiteral(value: string): boolean {
   return /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(value) || value.includes(':')

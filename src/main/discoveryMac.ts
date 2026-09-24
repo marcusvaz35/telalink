@@ -15,8 +15,8 @@ import type { IDiscovery } from './discovery'
  */
 const SERVICE_TYPE = '_telalink._tcp'
 const DOMAIN = 'local'
-const STALE_MS = 20_000
-const SWEEP_MS = 5_000
+const STALE_MS = 5 * 60_000
+const SWEEP_MS = 15_000
 
 interface DiscoveryEvents {
   update: [DiscoveredDevice[]]
@@ -76,7 +76,6 @@ export class DiscoveryMac extends EventEmitter implements IDiscovery {
     this.browseProc = spawn('dns-sd', ['-B', SERVICE_TYPE, `${DOMAIN}.`])
     this.browseProc.on('error', () => undefined)
 
-    const seenInstances = new Set<string>()
     createInterface({ input: this.browseProc.stdout }).on('line', (line) => {
       const match = line.match(/^\S+\s+(Add|Rmv)\s+\S+\s+\S+\s+\S+\s+\S+\s+(.+)$/)
       if (!match) return
@@ -84,12 +83,19 @@ export class DiscoveryMac extends EventEmitter implements IDiscovery {
       const instanceName = rawName.trim()
 
       if (action === 'Add') {
-        if (!seenInstances.has(instanceName)) {
-          seenInstances.add(instanceName)
+        const existingId = this.instanceToId.get(instanceName)
+        const existingDevice = existingId ? this.devices.get(existingId) : undefined
+        if (existingDevice) {
+          // Já resolvido antes — só renova "visto por último", sem
+          // disparar outro dns-sd -L. Sem isso o dispositivo sumia da
+          // lista sozinho depois de alguns segundos mesmo continuando
+          // ligado, porque ninguém nunca atualizava essa marca de tempo.
+          existingDevice.lastSeenAt = Date.now()
+          this.emitUpdate()
+        } else if (!this.lookupProcs.has(instanceName)) {
           this.resolve(instanceName)
         }
       } else {
-        seenInstances.delete(instanceName)
         const id = this.instanceToId.get(instanceName)
         if (id) {
           this.devices.delete(id)
@@ -99,6 +105,9 @@ export class DiscoveryMac extends EventEmitter implements IDiscovery {
       }
     })
 
+    // dns-sd já cuida da expiração de verdade via TTL/Rmv — esse sweep é só
+    // uma rede de segurança pra sumiço abrupto sem "goodbye" (rede caindo
+    // de repente), por isso o prazo é bem mais generoso que antes.
     this.sweepTimer = setInterval(() => this.sweepStale(), SWEEP_MS)
   }
 
