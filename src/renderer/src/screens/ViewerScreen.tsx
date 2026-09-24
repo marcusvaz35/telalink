@@ -9,7 +9,8 @@ interface ViewerScreenProps {
   onDisconnect: () => void
 }
 
-const TEXTURE_MAX_WIDTH = 1280
+const TEXTURE_WIDTH = 1920
+const TEXTURE_HEIGHT = 1080
 const TEXTURE_FPS = 15
 
 /** ImageData do canvas vem em RGBA; Syphon/Spout esperam BGRA. */
@@ -49,6 +50,8 @@ export function ViewerScreen({ remoteStream, peerSession, peerName, onSwap, onDi
     const canvas = canvasRef.current
     const video = videoRef.current
     if (!canvas || !video) return
+    canvas.width = TEXTURE_WIDTH
+    canvas.height = TEXTURE_HEIGHT
     const ctx = canvas.getContext('2d', { willReadFrequently: true })
     if (!ctx) return
 
@@ -57,16 +60,21 @@ export function ViewerScreen({ remoteStream, peerSession, peerName, onSwap, onDi
       const vh = video.videoHeight
       if (!vw || !vh) return
 
-      const width = Math.min(TEXTURE_MAX_WIDTH, vw)
-      const height = Math.round((width / vw) * vh)
-      if (canvas.width !== width || canvas.height !== height) {
-        canvas.width = width
-        canvas.height = height
-      }
+      // Sempre publica em 1920x1080 fixo pro Resolume, mesmo que a tela
+      // recebida esteja em outra resolução — encaixa mantendo a proporção
+      // (com tarjas pretas se precisar) em vez de esticar/distorcer.
+      const scale = Math.min(TEXTURE_WIDTH / vw, TEXTURE_HEIGHT / vh)
+      const drawWidth = Math.round(vw * scale)
+      const drawHeight = Math.round(vh * scale)
+      const offsetX = Math.round((TEXTURE_WIDTH - drawWidth) / 2)
+      const offsetY = Math.round((TEXTURE_HEIGHT - drawHeight) / 2)
 
-      ctx.drawImage(video, 0, 0, width, height)
-      const { data } = ctx.getImageData(0, 0, width, height)
-      window.telalink.sendTextureFrame(peerSession.requestId, toBgra(data), width, height)
+      ctx.fillStyle = '#000'
+      ctx.fillRect(0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT)
+      ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight)
+
+      const { data } = ctx.getImageData(0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT)
+      window.telalink.sendTextureFrame(peerSession.requestId, toBgra(data), TEXTURE_WIDTH, TEXTURE_HEIGHT)
     }, 1000 / TEXTURE_FPS)
 
     return () => clearInterval(interval)
@@ -95,10 +103,7 @@ export function ViewerScreen({ remoteStream, peerSession, peerName, onSwap, onDi
       await window.telalink.stopTextureShare(peerSession.requestId)
       return
     }
-    const video = videoRef.current
-    const width = Math.min(TEXTURE_MAX_WIDTH, video?.videoWidth || TEXTURE_MAX_WIDTH)
-    const height = video?.videoWidth ? Math.round((width / video.videoWidth) * video.videoHeight) : 720
-    await window.telalink.startTextureShare(peerSession.requestId, `TelaLink - ${peerName}`, width, height)
+    await window.telalink.startTextureShare(peerSession.requestId, `TelaLink - ${peerName}`, TEXTURE_WIDTH, TEXTURE_HEIGHT)
     setTextureSharing(true)
   }
 

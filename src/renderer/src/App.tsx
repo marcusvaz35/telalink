@@ -20,6 +20,13 @@ import { IncomingSharePicker } from './components/IncomingSharePicker'
 import { Toast } from './components/Toast'
 import { UpdateBanner } from './components/UpdateBanner'
 
+/** Extrai a mensagem de verdade de um erro de IPC, sem o prefixo técnico do Electron. */
+function connectionErrorMessage(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err ?? '')
+  const cleaned = raw.replace(/^Error invoking remote method '.*?':\s*(Error:\s*)?/, '').trim()
+  return cleaned || 'Não foi possível conectar.'
+}
+
 type View = 'home' | 'share-setup' | 'receive' | 'sharing' | 'web-share'
 
 interface PendingOutgoing {
@@ -239,9 +246,9 @@ export default function App(): JSX.Element {
       .then((requestId) => {
         pendingOutgoing.current = { requestId, kind: 'share-offer', target, source, presetId, audio }
       })
-      .catch(() => {
+      .catch((err) => {
         setOutgoingBusyId(null)
-        notify('Não foi possível conectar.', 'error')
+        notify(connectionErrorMessage(err), 'error')
       })
   }
 
@@ -252,9 +259,9 @@ export default function App(): JSX.Element {
       .then((requestId) => {
         pendingOutgoing.current = { requestId, kind: 'view-request', target }
       })
-      .catch(() => {
+      .catch((err) => {
         setOutgoingBusyId(null)
-        notify('Não foi possível conectar.', 'error')
+        notify(connectionErrorMessage(err), 'error')
       })
   }
 

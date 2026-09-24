@@ -1,7 +1,7 @@
 {
   "name": "telalink",
   "productName": "TelaLink",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Compartilhamento de tela P2P, simples e automático.",
   "main": "./out/main/index.js",
   "author": "TelaLink",

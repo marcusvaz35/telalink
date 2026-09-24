@@ -206,9 +206,22 @@ export class Signaling extends EventEmitter {
     const requestId = randomUUID()
     const socket = new WebSocket(`ws://${target.host}:${target.port}`)
 
+    // Sem isso, uma porta bloqueada por firewall trava o handshake TCP por
+    // minutos sem erro nenhum — do lado do usuário parece que "não acontece
+    // nada" ao clicar em compartilhar.
     await new Promise<void>((resolve, reject) => {
-      socket.once('open', () => resolve())
-      socket.once('error', (err) => reject(err))
+      const timeout = setTimeout(() => {
+        socket.terminate()
+        reject(new Error('Tempo esgotado ao conectar — verifique o firewall do dispositivo de destino.'))
+      }, 7000)
+      socket.once('open', () => {
+        clearTimeout(timeout)
+        resolve()
+      })
+      socket.once('error', (err) => {
+        clearTimeout(timeout)
+        reject(err)
+      })
     })
 
     this.sockets.set(requestId, socket)
