@@ -26,6 +26,11 @@ export function ViewerWindowApp({ requestId, peer }: ViewerWindowAppProps): JSX.
       if (id === requestId) setLost(true)
     })
 
+    // Avisa o processo principal que já dá pra entregar mensagens de sinalização
+    // de verdade — antes disso, qualquer oferta/resposta que tenha chegado fica
+    // represada lá, pra não se perder enquanto essa janela ainda carregava.
+    void window.telalink.viewerReady(requestId)
+
     return () => {
       offMessage()
       offClosed()

@@ -18,6 +18,14 @@ if (process.env['TELALINK_DEBUG_PORT']) {
 let mainWindow: BrowserWindow | null = null
 const viewerWindows = new Map<string, BrowserWindow>()
 const textureSenders = new Map<string, TextureSender>()
+/**
+ * Fila de segurança contra corrida: a janela de visualização leva um tempo
+ * pra carregar e montar o PeerSession, e a oferta de vídeo pode chegar antes
+ * disso — sem essa fila, a mensagem se perde pra sempre e ninguém recebe a
+ * imagem, sem erro nenhum. Fica represada aqui até a própria janela avisar
+ * que já está pronta pra receber.
+ */
+const pendingSignalMessages = new Map<string, SignalMessage[]>()
 // No macOS o dns-sd nativo interopera de verdade com clientes Bonjour reais
 // (iOS, Android, Bonjour Browser); em outras plataformas usamos a
 // implementação em JS via bonjour-service.
@@ -73,6 +81,8 @@ function openViewerWindow(requestId: string, peer: DeviceInfo): void {
   const width = Math.min(960, Math.round(primary.workAreaSize.width * 0.6))
   const height = Math.round((width * 9) / 16)
 
+  pendingSignalMessages.set(requestId, [])
+
   const win = new BrowserWindow({
     width,
     height,
@@ -96,6 +106,7 @@ function openViewerWindow(requestId: string, peer: DeviceInfo): void {
   })
   win.on('closed', () => {
     viewerWindows.delete(requestId)
+    pendingSignalMessages.delete(requestId)
     textureSenders.get(requestId)?.stop()
     textureSenders.delete(requestId)
   })
@@ -120,7 +131,14 @@ async function bootstrapNetworking(): Promise<void> {
 
   signaling.on('incoming-request', (payload) => broadcast('signal:incoming-request', payload))
   signaling.on('auto-accepted', (payload) => broadcast('signal:auto-accepted', payload))
-  signaling.on('message', (msg: SignalMessage) => broadcast('signal:message', msg))
+  signaling.on('message', (msg: SignalMessage) => {
+    const queue = pendingSignalMessages.get(msg.requestId)
+    if (queue) {
+      queue.push(msg)
+    } else {
+      broadcast('signal:message', msg)
+    }
+  })
   signaling.on('web-connected', (requestId) => broadcast('signal:web-connected', requestId))
   signaling.on('closed', (requestId) => {
     broadcast('signal:closed', requestId)
@@ -213,6 +231,12 @@ function registerIpc(): void {
 
   ipcMain.handle('viewer:open', (_e, requestId: string, peer: DeviceInfo) => {
     openViewerWindow(requestId, peer)
+  })
+
+  ipcMain.handle('viewer:ready', (_e, requestId: string) => {
+    const queued = pendingSignalMessages.get(requestId)
+    pendingSignalMessages.delete(requestId)
+    queued?.forEach((msg) => broadcast('signal:message', msg))
   })
 
   ipcMain.handle('viewer:toggle-fullscreen', (e) => {

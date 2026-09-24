@@ -62,6 +62,7 @@ const api = {
 
   openViewerWindow: (requestId: string, peer: DeviceInfo): Promise<void> =>
     ipcRenderer.invoke('viewer:open', requestId, peer),
+  viewerReady: (requestId: string): Promise<void> => ipcRenderer.invoke('viewer:ready', requestId),
   toggleThisWindowFullscreen: (): Promise<void> => ipcRenderer.invoke('viewer:toggle-fullscreen'),
   requestSwap: (peer: DeviceInfo): Promise<void> => ipcRenderer.invoke('viewer:swap-request', peer),
   onSwapNavigate: (cb: (peer: DeviceInfo) => void) => {
