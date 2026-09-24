@@ -7,6 +7,10 @@ const SERVICE_TYPE = 'telalink'
 const STALE_MS = 15_000
 const SWEEP_MS = 5_000
 
+function isIpLiteral(value: string): boolean {
+  return /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(value) || value.includes(':')
+}
+
 interface DiscoveryEvents {
   update: [DiscoveredDevice[]]
 }
@@ -50,7 +54,13 @@ export class Discovery extends EventEmitter implements IDiscovery {
     const id = txt.id
     if (!id || id === store.getDevice().id) return
 
-    const host = service.referer?.address ?? service.addresses?.[0]
+    // Prefere sempre um IP literal: em algumas redes (principalmente com o
+    // Windows) o hostname resolve pra um IP diferente do de quem realmente
+    // anunciou o serviço, e a conexão falha silenciosamente.
+    const candidates = [service.referer?.address, ...(service.addresses ?? [])].filter(
+      (h): h is string => !!h
+    )
+    const host = candidates.find(isIpLiteral) ?? candidates[0]
     if (!host) return
 
     const existing = this.devices.get(id)
