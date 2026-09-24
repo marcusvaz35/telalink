@@ -9,11 +9,28 @@ interface ViewerScreenProps {
   onDisconnect: () => void
 }
 
+const TEXTURE_MAX_WIDTH = 1280
+const TEXTURE_FPS = 15
+
+/** ImageData do canvas vem em RGBA; Syphon/Spout esperam BGRA. */
+function toBgra(rgba: Uint8ClampedArray): Uint8Array {
+  const out = new Uint8Array(rgba.length)
+  for (let i = 0; i < rgba.length; i += 4) {
+    out[i] = rgba[i + 2]
+    out[i + 1] = rgba[i + 1]
+    out[i + 2] = rgba[i]
+    out[i + 3] = rgba[i + 3]
+  }
+  return out
+}
+
 export function ViewerScreen({ remoteStream, peerSession, peerName, onSwap, onDisconnect }: ViewerScreenProps): JSX.Element {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const [stats, setStats] = useState<PeerSessionStats | null>(null)
-  const [showStats, setShowStats] = useState(true)
+  const [showStats, setShowStats] = useState(false)
+  const [textureSharing, setTextureSharing] = useState(false)
 
   useEffect(() => {
     if (videoRef.current) videoRef.current.srcObject = remoteStream
@@ -25,6 +42,35 @@ export function ViewerScreen({ remoteStream, peerSession, peerName, onSwap, onDi
     }, 1000)
     return () => clearInterval(interval)
   }, [peerSession])
+
+  useEffect(() => {
+    if (!textureSharing) return
+
+    const canvas = canvasRef.current
+    const video = videoRef.current
+    if (!canvas || !video) return
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return
+
+    const interval = setInterval(() => {
+      const vw = video.videoWidth
+      const vh = video.videoHeight
+      if (!vw || !vh) return
+
+      const width = Math.min(TEXTURE_MAX_WIDTH, vw)
+      const height = Math.round((width / vw) * vh)
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width
+        canvas.height = height
+      }
+
+      ctx.drawImage(video, 0, 0, width, height)
+      const { data } = ctx.getImageData(0, 0, width, height)
+      window.telalink.sendTextureFrame(peerSession.requestId, toBgra(data), width, height)
+    }, 1000 / TEXTURE_FPS)
+
+    return () => clearInterval(interval)
+  }, [textureSharing, peerSession])
 
   const handleFullscreen = (): void => {
     void window.telalink.toggleThisWindowFullscreen()
@@ -43,9 +89,23 @@ export function ViewerScreen({ remoteStream, peerSession, peerName, onSwap, onDi
     await window.telalink.saveScreenshot(dataUrl)
   }
 
+  const handleToggleTexture = async (): Promise<void> => {
+    if (textureSharing) {
+      setTextureSharing(false)
+      await window.telalink.stopTextureShare(peerSession.requestId)
+      return
+    }
+    const video = videoRef.current
+    const width = Math.min(TEXTURE_MAX_WIDTH, video?.videoWidth || TEXTURE_MAX_WIDTH)
+    const height = video?.videoWidth ? Math.round((width / video.videoWidth) * video.videoHeight) : 720
+    await window.telalink.startTextureShare(peerSession.requestId, `TelaLink - ${peerName}`, width, height)
+    setTextureSharing(true)
+  }
+
   return (
     <div ref={containerRef} style={{ position: 'relative', height: '100%', background: '#000', display: 'flex' }}>
       <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+      <canvas ref={canvasRef} style={{ display: 'none' }} />
 
       {showStats && stats && (
         <div
@@ -93,6 +153,13 @@ export function ViewerScreen({ remoteStream, peerSession, peerName, onSwap, onDi
         <IconButton label="Capturar" onClick={handleScreenshot}>
           📸
         </IconButton>
+        <IconButton
+          label={textureSharing ? 'Parar envio pro Resolume' : 'Enviar pro Resolume (Syphon/Spout)'}
+          onClick={() => void handleToggleTexture()}
+          active={textureSharing}
+        >
+          📡
+        </IconButton>
         <IconButton label="Trocar compartilhamento" onClick={onSwap}>
           ⇄
         </IconButton>
@@ -124,12 +191,14 @@ function IconButton({
   children,
   label,
   onClick,
-  danger
+  danger,
+  active
 }: {
   children: string
   label: string
   onClick: () => void
   danger?: boolean
+  active?: boolean
 }): JSX.Element {
   return (
     <button
@@ -140,7 +209,7 @@ function IconButton({
         height: 38,
         borderRadius: 10,
         border: 'none',
-        background: danger ? 'rgba(239,68,68,0.15)' : 'transparent',
+        background: danger ? 'rgba(239,68,68,0.15)' : active ? 'var(--tl-gradient-strong)' : 'transparent',
         color: danger ? '#fca5a5' : 'var(--tl-text)',
         fontSize: 16,
         cursor: 'pointer'

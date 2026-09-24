@@ -8,6 +8,7 @@ import { DiscoveryMac } from './discoveryMac'
 import { Signaling } from './signaling'
 import { getLanIp } from './network'
 import { checkForUpdate } from './updateCheck'
+import { TextureSender } from '@napolab/texture-bridge'
 import type { DeviceInfo, RequestKind, ScreenSource, SignalMessage } from '../shared/types'
 
 if (process.env['TELALINK_DEBUG_PORT']) {
@@ -16,6 +17,7 @@ if (process.env['TELALINK_DEBUG_PORT']) {
 
 let mainWindow: BrowserWindow | null = null
 const viewerWindows = new Map<string, BrowserWindow>()
+const textureSenders = new Map<string, TextureSender>()
 // No macOS o dns-sd nativo interopera de verdade com clientes Bonjour reais
 // (iOS, Android, Bonjour Browser); em outras plataformas usamos a
 // implementação em JS via bonjour-service.
@@ -98,7 +100,11 @@ function openViewerWindow(requestId: string, peer: DeviceInfo): void {
     win.setFullScreen(true)
     win.focus()
   })
-  win.on('closed', () => viewerWindows.delete(requestId))
+  win.on('closed', () => {
+    viewerWindows.delete(requestId)
+    textureSenders.get(requestId)?.stop()
+    textureSenders.delete(requestId)
+  })
 
   loadRenderer(win, { view: 'viewer', requestId, peerId: peer.id, peerName: peer.name })
   viewerWindows.set(requestId, win)
@@ -237,6 +243,20 @@ function registerIpc(): void {
 
   ipcMain.handle('update:open-download', (_e, url: string) => {
     shell.openExternal(url)
+  })
+
+  ipcMain.handle('texture:start', (_e, requestId: string, name: string, width: number, height: number) => {
+    textureSenders.get(requestId)?.stop()
+    textureSenders.set(requestId, new TextureSender(name, width, height))
+  })
+
+  ipcMain.on('texture:frame', (_e, requestId: string, data: Uint8Array, width: number, height: number) => {
+    textureSenders.get(requestId)?.sendRgbaBuffer(Buffer.from(data.buffer, data.byteOffset, data.byteLength), width, height)
+  })
+
+  ipcMain.handle('texture:stop', (_e, requestId: string) => {
+    textureSenders.get(requestId)?.stop()
+    textureSenders.delete(requestId)
   })
 }
 
