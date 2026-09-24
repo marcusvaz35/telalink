@@ -62,13 +62,6 @@ function loadRenderer(win: BrowserWindow, query?: Record<string, string>): void 
   }
 }
 
-/** Monitor diferente do principal, se houver — é onde a tela recebida deve abrir. */
-function pickSecondaryDisplay(): Electron.Display {
-  const displays = screen.getAllDisplays()
-  const primary = screen.getPrimaryDisplay()
-  return displays.find((d) => d.id !== primary.id) ?? primary
-}
-
 function openViewerWindow(requestId: string, peer: DeviceInfo): void {
   const existing = viewerWindows.get(requestId)
   if (existing && !existing.isDestroyed()) {
@@ -76,14 +69,16 @@ function openViewerWindow(requestId: string, peer: DeviceInfo): void {
     return
   }
 
-  const target = pickSecondaryDisplay()
+  const primary = screen.getPrimaryDisplay()
+  const width = Math.min(960, Math.round(primary.workAreaSize.width * 0.6))
+  const height = Math.round((width * 9) / 16)
 
   const win = new BrowserWindow({
-    x: target.bounds.x,
-    y: target.bounds.y,
-    width: target.bounds.width,
-    height: target.bounds.height,
-    frame: false,
+    width,
+    height,
+    center: true,
+    frame: true,
+    resizable: true,
     show: false,
     backgroundColor: '#000000',
     autoHideMenuBar: true,
@@ -97,7 +92,6 @@ function openViewerWindow(requestId: string, peer: DeviceInfo): void {
 
   win.on('ready-to-show', () => {
     win.show()
-    win.setFullScreen(true)
     win.focus()
   })
   win.on('closed', () => {

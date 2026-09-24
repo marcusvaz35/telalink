@@ -110,8 +110,11 @@ export class DiscoveryMac extends EventEmitter implements IDiscovery {
     proc.on('error', () => undefined)
 
     let pendingHost: { host: string; port: number } | null = null
+    let settled = false
 
     createInterface({ input: proc.stdout }).on('line', (line) => {
+      if (settled) return
+
       const hostMatch = line.match(/can be reached at ([^\s:]+):(\d+)/)
       if (hostMatch) {
         pendingHost = { host: hostMatch[1].replace(/\.$/, ''), port: Number(hostMatch[2]) }
@@ -119,27 +122,58 @@ export class DiscoveryMac extends EventEmitter implements IDiscovery {
       }
 
       if (line.startsWith(' ') && pendingHost) {
+        settled = true
+        const { host: hostname, port } = pendingHost
         const txt = parseTxtLine(line.trim())
-        if (txt.id && txt.id !== this.myId) {
+        proc.kill()
+        this.lookupProcs.delete(instanceName)
+
+        if (!txt.id || txt.id === this.myId) return
+
+        // O hostname .local às vezes resolve pra um IP diferente do que a
+        // conexão real vai usar (rede com mais de uma interface no mesmo
+        // nome) — pega o IP literal de verdade antes de guardar o dispositivo.
+        this.resolveHostToIp(hostname, (ip) => {
           this.instanceToId.set(instanceName, txt.id)
           this.devices.set(txt.id, {
             id: txt.id,
             name: txt.name ?? instanceName,
             type: (txt.devtype as DeviceType) ?? 'unknown',
-            host: pendingHost.host,
-            port: pendingHost.port,
+            host: ip ?? hostname,
+            port,
             lastSeenAt: Date.now(),
             trusted: store.isTrusted(txt.id),
             blocked: store.isBlocked(txt.id)
           })
           this.emitUpdate()
-        }
-        proc.kill()
-        this.lookupProcs.delete(instanceName)
+        })
       }
     })
 
     proc.on('close', () => this.lookupProcs.delete(instanceName))
+  }
+
+  private resolveHostToIp(hostname: string, done: (ip: string | null) => void): void {
+    const proc = spawn('dns-sd', ['-G', 'v4', hostname])
+    proc.on('error', () => done(null))
+
+    let finished = false
+    const finish = (ip: string | null): void => {
+      if (finished) return
+      finished = true
+      clearTimeout(timer)
+      proc.kill()
+      done(ip)
+    }
+
+    const timer = setTimeout(() => finish(null), 2500)
+
+    createInterface({ input: proc.stdout }).on('line', (line) => {
+      const match = line.match(/^\S+\s+(Add|Rmv)\s+\S+\s+\S+\s+\S+\s+(\d{1,3}(?:\.\d{1,3}){3})\s+\S+$/)
+      if (!match) return
+      const [, action, address] = match
+      if (action === 'Add' && address !== '127.0.0.1') finish(address)
+    })
   }
 
   private sweepStale(): void {
