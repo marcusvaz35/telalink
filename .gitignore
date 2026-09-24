@@ -1,0 +1,15 @@
+node_modules
+out
+dist
+release
+.DS_Store
+*.log
+
+# iOS
+ios/TelaLink.xcodeproj
+ios/build
+ios/DerivedData
+ios/.build
+ios/*.xcworkspace
+**/xcuserdata
+

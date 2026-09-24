@@ -1,0 +1,81 @@
+name: TelaLink
+options:
+  bundleIdPrefix: com.telalink
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+
+packages:
+  WebRTC:
+    url: https://github.com/stasel/WebRTC.git
+    exactVersion: 153.0.0
+
+targets:
+  TelaLink:
+    type: application
+    platform: iOS
+    sources:
+      - path: TelaLink
+      - path: Shared
+    dependencies:
+      - package: WebRTC
+      - target: TelaLinkBroadcast
+        embed: true
+    info:
+      path: TelaLink/Info.plist
+      properties:
+        CFBundleDisplayName: TelaLink
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSLocalNetworkUsageDescription: "O TelaLink usa a rede local para encontrar e conectar com outros dispositivos TelaLink automaticamente."
+        NSBonjourServices:
+          - _telalink._tcp
+        NSCameraUsageDescription: "Necessário apenas se você ativar áudio/vídeo do sistema durante o compartilhamento."
+        NSMicrophoneUsageDescription: "Necessário apenas se você ativar o microfone durante o compartilhamento."
+        ITSAppUsesNonExemptEncryption: false
+    entitlements:
+      path: TelaLink/TelaLink.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.telalink.app
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.telalink.app
+        INFOPLIST_KEY_UILaunchScreen_Generation: true
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+
+  TelaLinkBroadcast:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: TelaLinkBroadcast
+      - path: Shared
+    dependencies:
+      - package: WebRTC
+    info:
+      path: TelaLinkBroadcast/Info.plist
+      properties:
+        CFBundleDisplayName: TelaLink
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.broadcast-services-upload
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).SampleHandler
+          RPBroadcastProcessMode: RPBroadcastProcessModeSampleBuffer
+    entitlements:
+      path: TelaLinkBroadcast/TelaLinkBroadcast.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.telalink.app
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.telalink.app.broadcast
+        TARGETED_DEVICE_FAMILY: "1"
