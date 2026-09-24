@@ -37,6 +37,19 @@ export function ViewerScreen({ remoteStream, peerSession, peerName, onSwap, onDi
     if (videoRef.current) videoRef.current.srcObject = remoteStream
   }, [remoteStream])
 
+  // Publica pro Resolume (Syphon/Spout) automaticamente assim que a tela
+  // chega — sem precisar clicar em nada. O botão 📡 continua existindo só
+  // pra quem quiser parar/reiniciar manualmente.
+  useEffect(() => {
+    window.telalink
+      .startTextureShare(peerSession.requestId, `TelaLink - ${peerName}`, TEXTURE_WIDTH, TEXTURE_HEIGHT)
+      .then(() => setTextureSharing(true))
+    return () => {
+      void window.telalink.stopTextureShare(peerSession.requestId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     const interval = setInterval(() => {
       peerSession.getStats().then(setStats)

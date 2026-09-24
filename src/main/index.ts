@@ -287,11 +287,17 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 
-  // Checa uma vez por sessão — sem instalar nada sozinho: só avisa e abre o
-  // link do instalador certo pro sistema operacional quando clicarem.
-  checkForUpdate().then((info) => {
-    if (info) broadcast('update:available', info)
-  })
+  // Sem instalar nada sozinho: só avisa e abre o link do instalador certo
+  // pro sistema operacional quando clicarem. Checa ao abrir e depois
+  // periodicamente — sem isso, quem deixa o app aberto por muito tempo só
+  // fica sabendo de uma versão nova ao reiniciar o programa.
+  const runUpdateCheck = (): void => {
+    checkForUpdate().then((info) => {
+      if (info) broadcast('update:available', info)
+    })
+  }
+  runUpdateCheck()
+  setInterval(runUpdateCheck, 15 * 60 * 1000)
 })
 
 app.on('window-all-closed', () => {
