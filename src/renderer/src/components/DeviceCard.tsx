@@ -1,4 +1,6 @@
 import type { DeviceType, DiscoveredDevice } from '../../../shared/types'
+import iconMonitorWhite from '../assets/icons/icon_monitor_white.png'
+import iconPhoneWhite from '../assets/icons/icon_phone_white.png'
 
 const TYPE_LABEL: Record<DeviceType, string> = {
   mac: 'Mac',
@@ -10,12 +12,12 @@ const TYPE_LABEL: Record<DeviceType, string> = {
 }
 
 const TYPE_ICON: Record<DeviceType, string> = {
-  mac: '🖥️',
-  windows: '🖥️',
-  linux: '🖥️',
-  android: '📱',
-  ios: '📱',
-  unknown: '💻'
+  mac: iconMonitorWhite,
+  windows: iconMonitorWhite,
+  linux: iconMonitorWhite,
+  android: iconPhoneWhite,
+  ios: iconPhoneWhite,
+  unknown: iconMonitorWhite
 }
 
 interface DeviceCardProps {
@@ -38,7 +40,20 @@ export function DeviceCard({ device, actionLabel, onAction, disabled, busy }: De
         opacity: device.blocked ? 0.5 : 1
       }}
     >
-      <span style={{ fontSize: 22 }}>{TYPE_ICON[device.type]}</span>
+      <span
+        style={{
+          width: 34,
+          height: 34,
+          borderRadius: 10,
+          background: 'var(--tl-gradient-strong)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0
+        }}
+      >
+        <img src={TYPE_ICON[device.type]} alt="" style={{ height: 18 }} />
+      </span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span

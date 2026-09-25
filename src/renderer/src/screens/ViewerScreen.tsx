@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { PeerSession, PeerSessionStats } from '../webrtc/PeerSession'
+import iconSyncWhite from '../assets/icons/icon_sync_white.png'
+import iconTransferWhite from '../assets/icons/icon_transfer_white.png'
 
 interface ViewerScreenProps {
   remoteStream: MediaStream
@@ -174,10 +176,10 @@ export function ViewerScreen({ remoteStream, peerSession, peerName, onSwap, onDi
           onClick={() => void handleToggleTexture()}
           active={textureSharing}
         >
-          📡
+          <img src={iconSyncWhite} alt="" style={{ height: 16 }} />
         </IconButton>
         <IconButton label="Trocar compartilhamento" onClick={onSwap}>
-          ⇄
+          <img src={iconTransferWhite} alt="" style={{ height: 14 }} />
         </IconButton>
         <IconButton label="Desconectar" onClick={onDisconnect} danger>
           ✕
@@ -210,7 +212,7 @@ function IconButton({
   danger,
   active
 }: {
-  children: string
+  children: ReactNode
   label: string
   onClick: () => void
   danger?: boolean
@@ -228,7 +230,10 @@ function IconButton({
         background: danger ? 'rgba(239,68,68,0.15)' : active ? 'var(--tl-gradient-strong)' : 'transparent',
         color: danger ? '#fca5a5' : 'var(--tl-text)',
         fontSize: 16,
-        cursor: 'pointer'
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
       }}
     >
       {children}

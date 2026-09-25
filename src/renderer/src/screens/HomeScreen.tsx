@@ -1,6 +1,10 @@
 import type { DeviceInfo, DiscoveredDevice } from '../../../shared/types'
 import { Logo } from '../components/Logo'
 import { DeviceCard } from '../components/DeviceCard'
+import iconMonitorWhite from '../assets/icons/icon_monitor_white.png'
+import iconMonitorPhone from '../assets/icons/icon_monitor_phone.png'
+import iconPhone from '../assets/icons/icon_phone.png'
+import iconTransfer from '../assets/icons/icon_transfer.png'
 
 interface HomeScreenProps {
   device: DeviceInfo | null
@@ -35,10 +39,10 @@ export function HomeScreen({ device, devices, onShare, onReceive, onWebShare, on
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <button className="tl-btn tl-btn-primary" onClick={onShare}>
-          <span style={{ fontSize: 18 }}>🖥️</span> Compartilhar minha tela
+          <img src={iconMonitorWhite} alt="" style={{ height: 20 }} /> Compartilhar minha tela
         </button>
         <button className="tl-btn tl-btn-secondary" onClick={onReceive}>
-          <span style={{ fontSize: 18 }}>📺</span> Receber uma tela
+          <img src={iconMonitorPhone} alt="" style={{ height: 20 }} /> Receber uma tela
         </button>
         <button
           onClick={onWebShare}
@@ -49,10 +53,14 @@ export function HomeScreen({ device, devices, onShare, onReceive, onWebShare, on
             fontSize: 12,
             padding: '4px 0',
             cursor: 'pointer',
-            textAlign: 'center'
+            textAlign: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6
           }}
         >
-          🌐 Compartilhar com iPhone/Android (navegador)
+          <img src={iconPhone} alt="" style={{ height: 14 }} /> Compartilhar com iPhone/Android (navegador)
         </button>
         <button
           onClick={onManualConnect}
@@ -63,10 +71,14 @@ export function HomeScreen({ device, devices, onShare, onReceive, onWebShare, on
             fontSize: 12,
             padding: '4px 0',
             cursor: 'pointer',
-            textAlign: 'center'
+            textAlign: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6
           }}
         >
-          🔌 Conectar por IP (busca automática não achou?)
+          <img src={iconTransfer} alt="" style={{ height: 14, opacity: 0.8 }} /> Conectar por IP (busca automática não achou?)
         </button>
       </div>
 

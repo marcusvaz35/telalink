@@ -421,7 +421,16 @@ export default function App(): JSX.Element {
 
       {view === 'sharing' && sharing && (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🟢</div>
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              marginBottom: 12,
+              background: 'var(--tl-success)',
+              boxShadow: '0 0 24px rgba(20, 177, 119, 0.6)'
+            }}
+          />
           <div style={{ fontWeight: 700, fontSize: 16 }}>Compartilhando tela</div>
           <div style={{ color: 'var(--tl-text-dim)', fontSize: 13, marginTop: 4 }}>
             {sharing.sourceName} → {sharing.peer.name}

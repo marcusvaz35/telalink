@@ -1,29 +1,13 @@
+import logoMarkSrc from '../assets/icons/logo_mark.png'
+
 interface LogoMarkProps {
   size?: number
 }
 
+const LOGO_MARK_RATIO = 347 / 251
+
 export function LogoMark({ size = 40 }: LogoMarkProps): JSX.Element {
-  return (
-    <svg width={size} height={size} viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="tl-screen-back" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#5eead4" />
-          <stop offset="0.45" stopColor="#38bdf8" />
-          <stop offset="1" stopColor="#2563eb" />
-        </linearGradient>
-        <linearGradient id="tl-screen-front" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#3b82f6" />
-          <stop offset="1" stopColor="#1d3fa0" />
-        </linearGradient>
-      </defs>
-      <rect x="22" y="28" width="112" height="84" rx="20" fill="url(#tl-screen-back)" />
-      <rect x="68" y="70" width="112" height="84" rx="20" fill="url(#tl-screen-front)" />
-      <path d="M 72 88 C 96 88, 112 88, 132 88" fill="none" stroke="#f8fbff" strokeWidth="9" strokeLinecap="round" />
-      <path d="M 122 78 L 136 88 L 122 98 Z" fill="#f8fbff" />
-      <path d="M 130 116 C 106 116, 90 116, 70 116" fill="none" stroke="#f8fbff" strokeWidth="9" strokeLinecap="round" />
-      <path d="M 80 106 L 66 116 L 80 126 Z" fill="#f8fbff" />
-    </svg>
-  )
+  return <img src={logoMarkSrc} alt="TelaLink" style={{ height: size, width: size * LOGO_MARK_RATIO }} />
 }
 
 interface LogoProps {

@@ -13,9 +13,10 @@
   --tl-teal: #5eead4;
   --tl-gradient: linear-gradient(135deg, var(--tl-teal) 0%, var(--tl-cyan) 45%, var(--tl-blue) 100%);
   --tl-gradient-strong: linear-gradient(135deg, #3b82f6 0%, #1d3fa0 100%);
-  --tl-success: #22c55e;
+  --tl-success: #14b177;
   --tl-warning: #f59e0b;
   --tl-danger: #ef4444;
+  --tl-dot-offline: #496f9b;
   --tl-radius-lg: 20px;
   --tl-radius-md: 14px;
   --tl-radius-sm: 10px;
@@ -128,13 +129,13 @@ button {
 }
 .tl-dot-online {
   background: var(--tl-success);
-  box-shadow: 0 0 8px rgba(34, 197, 94, 0.7);
+  box-shadow: 0 0 8px rgba(20, 177, 119, 0.7);
 }
 .tl-dot-busy {
   background: var(--tl-warning);
 }
 .tl-dot-offline {
-  background: var(--tl-text-faint);
+  background: var(--tl-dot-offline);
 }
 
 .tl-fade-in {
