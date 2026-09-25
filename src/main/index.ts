@@ -5,6 +5,8 @@ import { is } from './platform'
 import { store } from './store'
 import { Discovery, type IDiscovery } from './discovery'
 import { DiscoveryMac } from './discoveryMac'
+import { BroadcastDiscovery } from './discoveryBroadcast'
+import { MergedDiscovery } from './discoveryMerged'
 import { Signaling } from './signaling'
 import { getLanIp } from './network'
 import { checkForUpdate } from './updateCheck'
@@ -28,8 +30,14 @@ const textureSenders = new Map<string, TextureSender>()
 const pendingSignalMessages = new Map<string, SignalMessage[]>()
 // No macOS o dns-sd nativo interopera de verdade com clientes Bonjour reais
 // (iOS, Android, Bonjour Browser); em outras plataformas usamos a
-// implementação em JS via bonjour-service.
-const discovery: IDiscovery = process.platform === 'darwin' ? new DiscoveryMac() : new Discovery()
+// implementação em JS via bonjour-service. Em paralelo, sempre soma um
+// broadcast UDP simples: em redes com Wi-Fi segmentado (eventos, igrejas)
+// o mDNS às vezes fica assimétrico entre os dois lados mesmo com tudo
+// liberado, e o broadcast serve de rede de segurança automática.
+const discovery: IDiscovery = new MergedDiscovery([
+  process.platform === 'darwin' ? new DiscoveryMac() : new Discovery(),
+  new BroadcastDiscovery()
+])
 let signaling: Signaling
 let signalPort = 0
 
