@@ -8,9 +8,10 @@ interface HomeScreenProps {
   onShare: () => void
   onReceive: () => void
   onWebShare: () => void
+  onManualConnect: () => void
 }
 
-export function HomeScreen({ device, devices, onShare, onReceive, onWebShare }: HomeScreenProps): JSX.Element {
+export function HomeScreen({ device, devices, onShare, onReceive, onWebShare, onManualConnect }: HomeScreenProps): JSX.Element {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 24, gap: 24 }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginTop: 8 }}>
@@ -52,6 +53,20 @@ export function HomeScreen({ device, devices, onShare, onReceive, onWebShare }: 
           }}
         >
           🌐 Compartilhar com iPhone/Android (navegador)
+        </button>
+        <button
+          onClick={onManualConnect}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--tl-text-faint)',
+            fontSize: 12,
+            padding: '4px 0',
+            cursor: 'pointer',
+            textAlign: 'center'
+          }}
+        >
+          🔌 Conectar por IP (busca automática não achou?)
         </button>
       </div>
 

@@ -29,6 +29,8 @@ const api = {
 
   requestConnection: (targetDeviceId: string, kind: RequestKind): Promise<string> =>
     ipcRenderer.invoke('signal:request-connection', targetDeviceId, kind),
+  requestConnectionByAddress: (host: string, port: number, kind: RequestKind): Promise<string> =>
+    ipcRenderer.invoke('signal:request-connection-by-address', host, port, kind),
   respondConnect: (requestId: string, accept: boolean, trust: boolean, peerId: string): Promise<void> =>
     ipcRenderer.invoke('signal:respond', requestId, accept, trust, peerId),
   sendSignal: (message: SignalMessage): Promise<void> => ipcRenderer.invoke('signal:send', message),

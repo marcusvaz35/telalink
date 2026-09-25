@@ -19,12 +19,27 @@ import { ConnectionRequestModal } from './components/ConnectionRequestModal'
 import { IncomingSharePicker } from './components/IncomingSharePicker'
 import { Toast } from './components/Toast'
 import { UpdateBanner } from './components/UpdateBanner'
+import { ManualConnectModal } from './components/ManualConnectModal'
 
 /** Extrai a mensagem de verdade de um erro de IPC, sem o prefixo técnico do Electron. */
 function connectionErrorMessage(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err ?? '')
   const cleaned = raw.replace(/^Error invoking remote method '.*?':\s*(Error:\s*)?/, '').trim()
   return cleaned || 'Não foi possível conectar.'
+}
+
+const MANUAL_PREFIX = 'manual:'
+
+function isManualDevice(id: string): boolean {
+  return id.startsWith(MANUAL_PREFIX)
+}
+
+/** Quando a busca automática falha (algumas redes bloqueiam), conecta direto
+ *  pelo IP — sem precisar que o dispositivo tenha sido descoberto antes. */
+function requestConnectionFor(target: DiscoveredDevice, kind: 'share-offer' | 'view-request'): Promise<string> {
+  return isManualDevice(target.id)
+    ? window.telalink.requestConnectionByAddress(target.host, target.port, kind)
+    : window.telalink.requestConnection(target.id, kind)
 }
 
 type View = 'home' | 'share-setup' | 'receive' | 'sharing' | 'web-share'
@@ -67,6 +82,8 @@ export default function App(): JSX.Element {
   const [webShare, setWebShare] = useState<WebShareState | null>(null)
   const [webShareBusy, setWebShareBusy] = useState(false)
   const [prefillTargetId, setPrefillTargetId] = useState<string | null>(null)
+  const [manualDevices, setManualDevices] = useState<DiscoveredDevice[]>([])
+  const [manualConnectOpen, setManualConnectOpen] = useState(false)
 
   const peerSessions = useRef(new Map<string, PeerSession>())
   const pendingOutgoing = useRef<PendingOutgoing | null>(null)
@@ -241,8 +258,7 @@ export default function App(): JSX.Element {
 
   const handleStartShare = (source: ScreenSource, target: DiscoveredDevice, presetId: SharePreset['id'], audio: boolean): void => {
     setOutgoingBusyId(target.id)
-    window.telalink
-      .requestConnection(target.id, 'share-offer')
+    requestConnectionFor(target, 'share-offer')
       .then((requestId) => {
         pendingOutgoing.current = { requestId, kind: 'share-offer', target, source, presetId, audio }
       })
@@ -254,8 +270,7 @@ export default function App(): JSX.Element {
 
   const handleRequestView = (target: DiscoveredDevice): void => {
     setOutgoingBusyId(target.id)
-    window.telalink
-      .requestConnection(target.id, 'view-request')
+    requestConnectionFor(target, 'view-request')
       .then((requestId) => {
         pendingOutgoing.current = { requestId, kind: 'view-request', target }
       })
@@ -263,6 +278,22 @@ export default function App(): JSX.Element {
         setOutgoingBusyId(null)
         notify(connectionErrorMessage(err), 'error')
       })
+  }
+
+  const handleAddManualDevice = (host: string, port: number): void => {
+    const id = `${MANUAL_PREFIX}${host}:${port}`
+    const device: DiscoveredDevice = {
+      id,
+      name: host,
+      type: 'unknown',
+      host,
+      port,
+      lastSeenAt: Date.now(),
+      trusted: false,
+      blocked: false
+    }
+    setManualDevices((current) => [...current.filter((d) => d.id !== id), device])
+    setManualConnectOpen(false)
   }
 
   const handleRespondIncoming = (accept: boolean, trust: boolean): void => {
@@ -355,19 +386,24 @@ export default function App(): JSX.Element {
       {view === 'home' && (
         <HomeScreen
           device={device}
-          devices={devices}
+          devices={[...devices, ...manualDevices]}
           onShare={() => {
             setPrefillTargetId(null)
             setView('share-setup')
           }}
           onReceive={() => setView('receive')}
           onWebShare={() => setView('web-share')}
+          onManualConnect={() => setManualConnectOpen(true)}
         />
       )}
 
       {view === 'share-setup' && (
         <ShareSetupScreen
-          devices={prefillTargetId ? devices.filter((d) => d.id === prefillTargetId) : devices}
+          devices={
+            prefillTargetId
+              ? [...devices, ...manualDevices].filter((d) => d.id === prefillTargetId)
+              : [...devices, ...manualDevices]
+          }
           busy={outgoingBusyId !== null}
           onBack={() => setView('home')}
           onStart={handleStartShare}
@@ -375,7 +411,12 @@ export default function App(): JSX.Element {
       )}
 
       {view === 'receive' && (
-        <ReceiveScreen devices={devices} busyDeviceId={outgoingBusyId} onBack={() => setView('home')} onRequest={handleRequestView} />
+        <ReceiveScreen
+          devices={[...devices, ...manualDevices]}
+          busyDeviceId={outgoingBusyId}
+          onBack={() => setView('home')}
+          onRequest={handleRequestView}
+        />
       )}
 
       {view === 'sharing' && sharing && (
@@ -412,6 +453,10 @@ export default function App(): JSX.Element {
           onCancel={handleCancelIncomingShare}
           onConfirm={handleConfirmIncomingShare}
         />
+      )}
+
+      {manualConnectOpen && (
+        <ManualConnectModal onClose={() => setManualConnectOpen(false)} onAdd={handleAddManualDevice} />
       )}
 
       {toast && <Toast message={toast.message} tone={toast.tone} />}

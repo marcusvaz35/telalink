@@ -198,6 +198,10 @@ function registerIpc(): void {
     return signaling.requestConnection(targetDeviceId, kind)
   })
 
+  ipcMain.handle('signal:request-connection-by-address', async (_e, host: string, port: number, kind: RequestKind) => {
+    return signaling.requestConnectionByAddress(host, port, kind)
+  })
+
   ipcMain.handle('signal:respond', (_e, requestId: string, accept: boolean, trust: boolean, peerId: string) => {
     if (trust && accept) store.trust(peerId)
     signaling.send(requestId, { type: 'connect-response', requestId, accept })

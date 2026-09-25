@@ -11,9 +11,11 @@ import type {
 import { store } from './store'
 import type { IDiscovery } from './discovery'
 import { renderWebViewerPage } from './webViewerPage'
+import { DEFAULT_SIGNAL_PORT } from '../shared/types'
 
 const WEB_SESSION_TTL_MS = 5 * 60 * 1000
 const RECONNECT_WINDOW_MS = 2 * 60 * 1000
+const PREFERRED_PORT = DEFAULT_SIGNAL_PORT
 
 interface SignalingEvents {
   'incoming-request': [IncomingRequestPayload]
@@ -48,16 +50,31 @@ export class Signaling extends EventEmitter {
   }
 
   async start(): Promise<number> {
-    return new Promise((resolve) => {
-      this.httpServer = createServer((req, res) => this.handleHttpRequest(req.url, res))
-      this.wss = new WebSocketServer({ server: this.httpServer })
-      this.wss.on('connection', (socket, req) => this.handleInboundSocket(socket, req.url))
-      this.httpServer.listen(0, '0.0.0.0', () => {
-        const addr = this.httpServer!.address()
-        const port = typeof addr === 'object' && addr ? addr.port : 0
-        resolve(port)
+    this.httpServer = createServer((req, res) => this.handleHttpRequest(req.url, res))
+    this.wss = new WebSocketServer({ server: this.httpServer })
+    this.wss.on('connection', (socket, req) => this.handleInboundSocket(socket, req.url))
+
+    const tryListen = (port: number): Promise<number> =>
+      new Promise((resolve, reject) => {
+        const onError = (err: NodeJS.ErrnoException): void => {
+          this.httpServer!.off('listening', onListening)
+          reject(err)
+        }
+        const onListening = (): void => {
+          this.httpServer!.off('error', onError)
+          const addr = this.httpServer!.address()
+          resolve(typeof addr === 'object' && addr ? addr.port : 0)
+        }
+        this.httpServer!.once('error', onError)
+        this.httpServer!.once('listening', onListening)
+        this.httpServer!.listen(port, '0.0.0.0')
       })
-    })
+
+    try {
+      return await tryListen(PREFERRED_PORT)
+    } catch {
+      return tryListen(0)
+    }
   }
 
   private handleHttpRequest(rawUrl: string | undefined, res: import('http').ServerResponse): void {
@@ -202,9 +219,18 @@ export class Signaling extends EventEmitter {
   async requestConnection(targetDeviceId: string, kind: RequestKind): Promise<string> {
     const target = this.discovery.getHost(targetDeviceId)
     if (!target) throw new Error('Dispositivo não encontrado na rede.')
+    return this.connectAndHandshake(target.host, target.port, kind)
+  }
 
+  /** Contorna a descoberta automática quando ela falha numa rede específica
+   *  (roteadores/mesh que filtram mDNS não-nativo) — conecta direto pelo IP. */
+  async requestConnectionByAddress(host: string, port: number, kind: RequestKind): Promise<string> {
+    return this.connectAndHandshake(host, port, kind)
+  }
+
+  private async connectAndHandshake(host: string, port: number, kind: RequestKind): Promise<string> {
     const requestId = randomUUID()
-    const socket = new WebSocket(`ws://${target.host}:${target.port}`)
+    const socket = new WebSocket(`ws://${host}:${port}`)
 
     // Sem isso, uma porta bloqueada por firewall trava o handshake TCP por
     // minutos sem erro nenhum — do lado do usuário parece que "não acontece

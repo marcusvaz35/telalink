@@ -18,6 +18,11 @@ export interface IceCandidateInit {
 
 export type DeviceType = 'mac' | 'windows' | 'linux' | 'android' | 'ios' | 'unknown'
 
+/** Porta padrão do servidor de sinalização — fixa pra permitir conectar por
+ *  IP manual sem precisar informar a porta também (cai pra uma aleatória só
+ *  se essa já estiver em uso). */
+export const DEFAULT_SIGNAL_PORT = 47811
+
 export interface DeviceInfo {
   id: string
   name: string
