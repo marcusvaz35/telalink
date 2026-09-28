@@ -88,7 +88,7 @@ const api = {
   },
   openUpdateDownload: (url: string): Promise<void> => ipcRenderer.invoke('update:open-download', url),
 
-  startTextureShare: (requestId: string, name: string, width: number, height: number): Promise<void> =>
+  startTextureShare: (requestId: string, name: string, width: number, height: number): Promise<boolean> =>
     ipcRenderer.invoke('texture:start', requestId, name, width, height),
   sendTextureFrame: (requestId: string, data: Uint8Array, width: number, height: number): void => {
     ipcRenderer.send('texture:frame', requestId, data, width, height)

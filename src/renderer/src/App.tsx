@@ -25,6 +25,12 @@ import { ManualConnectModal } from './components/ManualConnectModal'
 function connectionErrorMessage(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err ?? '')
   const cleaned = raw.replace(/^Error invoking remote method '.*?':\s*(Error:\s*)?/, '').trim()
+  if (/EHOSTUNREACH|ENETUNREACH|ETIMEDOUT|Tempo esgotado/.test(cleaned)) {
+    return 'Não consegui falar com esse computador. Verifique se o TelaLink está aberto nele e se o Firewall do Windows permite o app nesta rede.'
+  }
+  if (/ECONNREFUSED/.test(cleaned)) {
+    return 'O TelaLink não está aberto no outro computador. Abra o app lá e tente de novo.'
+  }
   return cleaned || 'Não foi possível conectar.'
 }
 

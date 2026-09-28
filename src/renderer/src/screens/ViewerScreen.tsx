@@ -45,7 +45,7 @@ export function ViewerScreen({ remoteStream, peerSession, peerName, onSwap, onDi
   useEffect(() => {
     window.telalink
       .startTextureShare(peerSession.requestId, `TelaLink - ${peerName}`, TEXTURE_WIDTH, TEXTURE_HEIGHT)
-      .then(() => setTextureSharing(true))
+      .then((started) => setTextureSharing(started))
     return () => {
       void window.telalink.stopTextureShare(peerSession.requestId)
     }
@@ -116,8 +116,13 @@ export function ViewerScreen({ remoteStream, peerSession, peerName, onSwap, onDi
       await window.telalink.stopTextureShare(peerSession.requestId)
       return
     }
-    await window.telalink.startTextureShare(peerSession.requestId, `TelaLink - ${peerName}`, TEXTURE_WIDTH, TEXTURE_HEIGHT)
-    setTextureSharing(true)
+    const started = await window.telalink.startTextureShare(
+      peerSession.requestId,
+      `TelaLink - ${peerName}`,
+      TEXTURE_WIDTH,
+      TEXTURE_HEIGHT
+    )
+    setTextureSharing(started)
   }
 
   return (

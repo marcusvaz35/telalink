@@ -275,13 +275,32 @@ function registerIpc(): void {
     shell.openExternal(url)
   })
 
-  ipcMain.handle('texture:start', (_e, requestId: string, name: string, width: number, height: number) => {
+  // No Windows a lib só sabe enviar pro Spout via textura compartilhada da
+  // GPU (sendRgbaBuffer lança "not yet implemented"), então lá a saída pro
+  // Resolume fica desligada em vez de derrubar o app com exceção.
+  ipcMain.handle('texture:start', (_e, requestId: string, name: string, width: number, height: number): boolean => {
     textureSenders.get(requestId)?.stop()
-    textureSenders.set(requestId, new TextureSender(name, width, height))
+    textureSenders.delete(requestId)
+    if (process.platform === 'win32') return false
+    try {
+      textureSenders.set(requestId, new TextureSender(name, width, height))
+      return true
+    } catch (err) {
+      console.log(`[texture] não foi possível iniciar: ${(err as Error).message}`)
+      return false
+    }
   })
 
   ipcMain.on('texture:frame', (_e, requestId: string, data: Uint8Array, width: number, height: number) => {
-    textureSenders.get(requestId)?.sendRgbaBuffer(Buffer.from(data.buffer, data.byteOffset, data.byteLength), width, height)
+    const sender = textureSenders.get(requestId)
+    if (!sender) return
+    try {
+      sender.sendRgbaBuffer(Buffer.from(data.buffer, data.byteOffset, data.byteLength), width, height)
+    } catch (err) {
+      console.log(`[texture] falha ao enviar quadro, desligando: ${(err as Error).message}`)
+      sender.stop()
+      textureSenders.delete(requestId)
+    }
   })
 
   ipcMain.handle('texture:stop', (_e, requestId: string) => {
