@@ -93,6 +93,11 @@ const api = {
   sendTextureFrame: (requestId: string, data: Uint8Array, width: number, height: number): void => {
     ipcRenderer.send('texture:frame', requestId, data, width, height)
   },
+  onTextureFrameIn: (cb: (data: Uint8Array, width: number, height: number) => void) => {
+    const listener = (_e: unknown, data: Uint8Array, width: number, height: number) => cb(data, width, height)
+    ipcRenderer.on('texture:frame-in', listener)
+    return () => ipcRenderer.removeListener('texture:frame-in', listener)
+  },
   stopTextureShare: (requestId: string): Promise<void> => ipcRenderer.invoke('texture:stop', requestId)
 }
 

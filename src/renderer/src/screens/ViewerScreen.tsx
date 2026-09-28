@@ -14,6 +14,7 @@ interface ViewerScreenProps {
 const TEXTURE_WIDTH = 1920
 const TEXTURE_HEIGHT = 1080
 const TEXTURE_FPS = 15
+const IS_WINDOWS = navigator.userAgent.includes('Windows')
 
 /** ImageData do canvas vem em RGBA; Syphon/Spout esperam BGRA. */
 function toBgra(rgba: Uint8ClampedArray): Uint8Array {
@@ -87,7 +88,9 @@ export function ViewerScreen({ remoteStream, peerSession, peerName, onSwap, onDi
       ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight)
 
       const { data } = ctx.getImageData(0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT)
-      window.telalink.sendTextureFrame(peerSession.requestId, toBgra(data), TEXTURE_WIDTH, TEXTURE_HEIGHT)
+      // Syphon (Mac) quer BGRA; no Windows o quadro vai pra um canvas, que quer RGBA.
+      const frame = IS_WINDOWS ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength) : toBgra(data)
+      window.telalink.sendTextureFrame(peerSession.requestId, frame, TEXTURE_WIDTH, TEXTURE_HEIGHT)
     }, 1000 / TEXTURE_FPS)
 
     return () => clearInterval(interval)

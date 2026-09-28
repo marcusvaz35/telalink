@@ -11,6 +11,7 @@ import { Signaling } from './signaling'
 import { getLanIp } from './network'
 import { checkForUpdate } from './updateCheck'
 import { TextureSender } from '@napolab/texture-bridge'
+import { SpoutOutput } from './spoutWin'
 import type { DeviceInfo, RequestKind, ScreenSource, SignalMessage } from '../shared/types'
 
 if (process.env['TELALINK_DEBUG_PORT']) {
@@ -19,7 +20,10 @@ if (process.env['TELALINK_DEBUG_PORT']) {
 
 let mainWindow: BrowserWindow | null = null
 const viewerWindows = new Map<string, BrowserWindow>()
-const textureSenders = new Map<string, TextureSender>()
+const textureSenders = new Map<
+  string,
+  { push: (data: Uint8Array, width: number, height: number) => void; stop: () => void }
+>()
 /**
  * Fila de segurança contra corrida: a janela de visualização leva um tempo
  * pra carregar e montar o PeerSession, e a oferta de vídeo pode chegar antes
@@ -61,8 +65,8 @@ function createWindow(): void {
   mainWindow.on('closed', () => {
     mainWindow = null
   })
-  mainWindow.webContents.on('console-message', (_e, _level, message, line, sourceId) => {
-    console.log(`[renderer] ${message} (${sourceId}:${line})`)
+  mainWindow.webContents.on('console-message', (details) => {
+    console.log(`[renderer] ${details.message} (${details.sourceId}:${details.lineNumber})`)
   })
 
   loadRenderer(mainWindow)
@@ -281,9 +285,23 @@ function registerIpc(): void {
   ipcMain.handle('texture:start', (_e, requestId: string, name: string, width: number, height: number): boolean => {
     textureSenders.get(requestId)?.stop()
     textureSenders.delete(requestId)
-    if (process.platform === 'win32') return false
     try {
-      textureSenders.set(requestId, new TextureSender(name, width, height))
+      if (process.platform === 'win32') {
+        const spout = new SpoutOutput(
+          name,
+          width,
+          height,
+          join(__dirname, '../preload/index.js'),
+          join(__dirname, '../renderer/index.html')
+        )
+        textureSenders.set(requestId, { push: (d, w, h) => spout.push(d, w, h), stop: () => spout.stop() })
+      } else {
+        const sender = new TextureSender(name, width, height)
+        textureSenders.set(requestId, {
+          push: (d, w, h) => sender.sendRgbaBuffer(Buffer.from(d.buffer, d.byteOffset, d.byteLength), w, h),
+          stop: () => sender.stop()
+        })
+      }
       return true
     } catch (err) {
       console.log(`[texture] não foi possível iniciar: ${(err as Error).message}`)
@@ -295,7 +313,7 @@ function registerIpc(): void {
     const sender = textureSenders.get(requestId)
     if (!sender) return
     try {
-      sender.sendRgbaBuffer(Buffer.from(data.buffer, data.byteOffset, data.byteLength), width, height)
+      sender.push(data, width, height)
     } catch (err) {
       console.log(`[texture] falha ao enviar quadro, desligando: ${(err as Error).message}`)
       sender.stop()
