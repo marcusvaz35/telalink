@@ -1,4 +1,4 @@
-import { app, BrowserWindow, desktopCapturer, ipcMain, dialog, screen, shell } from 'electron'
+import { app, BrowserWindow, desktopCapturer, ipcMain, dialog, Menu, screen, shell } from 'electron'
 import { join } from 'path'
 import { writeFile } from 'fs/promises'
 import { is } from './platform'
@@ -12,7 +12,8 @@ import { getLanIp } from './network'
 import { checkForUpdate } from './updateCheck'
 import { TextureSender } from '@napolab/texture-bridge'
 import { SpoutOutput } from './spoutWin'
-import type { DeviceInfo, RequestKind, ScreenSource, SignalMessage } from '../shared/types'
+import { RemoteControl } from './remoteControl'
+import type { DeviceInfo, DeviceType, RemoteInputEvent, RequestKind, ScreenSource, SignalMessage } from '../shared/types'
 
 if (process.env['TELALINK_DEBUG_PORT']) {
   app.commandLine.appendSwitch('remote-debugging-port', process.env['TELALINK_DEBUG_PORT'])
@@ -42,6 +43,9 @@ const discovery: IDiscovery = new MergedDiscovery([
   process.platform === 'darwin' ? new DiscoveryMac() : new Discovery(),
   new BroadcastDiscovery()
 ])
+const remoteControl = new RemoteControl(join(__dirname, '../preload/index.js'), (win, peerName) =>
+  loadRenderer(win, { view: 'control-overlay', peerName })
+)
 let signaling: Signaling
 let signalPort = 0
 
@@ -70,6 +74,25 @@ function createWindow(): void {
   })
 
   loadRenderer(mainWindow)
+}
+
+let savedMenu: Menu | null = null
+
+/**
+ * Enquanto alguém controla outro computador, atalhos como Cmd+C/Cmd+V/Cmd+Q
+ * precisam chegar até a página (pra serem enviados), mas o menu do app os
+ * consome antes. Troca por um menu sem atalhos nesse período.
+ */
+function setKeyCapture(capture: boolean): void {
+  if (capture) {
+    if (savedMenu === null) savedMenu = Menu.getApplicationMenu()
+    Menu.setApplicationMenu(
+      process.platform === 'darwin' ? Menu.buildFromTemplate([{ label: app.name, submenu: [{ label: app.name, enabled: false }] }]) : null
+    )
+  } else if (savedMenu !== null) {
+    Menu.setApplicationMenu(savedMenu)
+    savedMenu = null
+  }
 }
 
 function loadRenderer(win: BrowserWindow, query?: Record<string, string>): void {
@@ -135,6 +158,7 @@ function broadcast(channel: string, ...args: unknown[]): void {
 
 async function bootstrapNetworking(): Promise<void> {
   signaling = new Signaling(store.getDevice(), discovery)
+  remoteControl.on('revoked', (requestId) => broadcast('control:revoked', requestId))
   const port = await signaling.start()
   signalPort = port
   discovery.start(store.getDevice(), port)
@@ -153,6 +177,7 @@ async function bootstrapNetworking(): Promise<void> {
   })
   signaling.on('web-connected', (requestId) => broadcast('signal:web-connected', requestId))
   signaling.on('closed', (requestId) => {
+    remoteControl.revoke(requestId)
     broadcast('signal:closed', requestId)
     viewerWindows.get(requestId)?.close()
   })
@@ -202,7 +227,8 @@ function registerIpc(): void {
       id: s.id,
       name: s.name || (s.id.startsWith('screen') ? 'Tela' : 'Janela'),
       kind: s.id.startsWith('screen') ? 'screen' : 'window',
-      thumbnailDataUrl: s.thumbnail.toDataURL()
+      thumbnailDataUrl: s.thumbnail.toDataURL(),
+      displayId: s.id.startsWith('screen') ? s.display_id : undefined
     }))
   })
 
@@ -321,6 +347,16 @@ function registerIpc(): void {
     }
   })
 
+  ipcMain.handle(
+    'control:grant',
+    (_e, requestId: string, displayId: string | undefined, viewerPlatform: DeviceType, peerName: string) =>
+      remoteControl.grant(requestId, displayId, viewerPlatform, String(peerName).slice(0, 80))
+  )
+  ipcMain.handle('control:revoke', (_e, requestId: string) => remoteControl.revoke(requestId))
+  ipcMain.handle('control:key-capture', (_e, capture: boolean) => setKeyCapture(capture))
+  ipcMain.handle('control:revoke-all', () => remoteControl.revokeAll())
+  ipcMain.on('control:event', (_e, requestId: string, ev: RemoteInputEvent) => remoteControl.handle(requestId, ev))
+
   ipcMain.handle('texture:stop', (_e, requestId: string) => {
     textureSenders.get(requestId)?.stop()
     textureSenders.delete(requestId)
@@ -350,12 +386,14 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
+  remoteControl.revokeAll()
   discovery.stop()
   signaling?.stop()
   if (process.platform !== 'darwin') app.quit()
 })
 
 app.on('before-quit', () => {
+  remoteControl.revokeAll()
   discovery.stop()
   signaling?.stop()
 })

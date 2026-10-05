@@ -1,4 +1,4 @@
-import type { SignalMessage } from '../../../shared/types'
+import type { ControlMessage, SignalMessage } from '../../../shared/types'
 
 /**
  * Fase 1: sem STUN/TURN — a mesma rede local já resolve via candidatos "host".
@@ -27,6 +27,9 @@ export class PeerSession {
 
   onRemoteStream: ((stream: MediaStream) => void) | null = null
   onConnectionStateChange: ((state: RTCPeerConnectionState) => void) | null = null
+  onControlMessage: ((message: ControlMessage) => void) | null = null
+  onControlOpen: (() => void) | null = null
+  private controlChannel: RTCDataChannel | null = null
 
   constructor(requestId: string, role: Role) {
     this.requestId = requestId
@@ -47,12 +50,34 @@ export class PeerSession {
       this.onRemoteStream?.(ev.streams[0])
     }
 
+    this.pc.ondatachannel = (ev) => {
+      if (ev.channel.label === 'control') this.wireControlChannel(ev.channel)
+    }
+
     this.pc.onconnectionstatechange = () => {
       this.onConnectionStateChange?.(this.pc.connectionState)
     }
   }
 
+  private wireControlChannel(channel: RTCDataChannel): void {
+    this.controlChannel = channel
+    channel.onopen = () => this.onControlOpen?.()
+    channel.onmessage = (ev) => {
+      try {
+        this.onControlMessage?.(JSON.parse(String(ev.data)) as ControlMessage)
+      } catch {
+        // ignora mensagens inválidas
+      }
+    }
+    if (channel.readyState === 'open') this.onControlOpen?.()
+  }
+
+  sendControl(message: ControlMessage): void {
+    if (this.controlChannel?.readyState === 'open') this.controlChannel.send(JSON.stringify(message))
+  }
+
   async startAsSharer(stream: MediaStream): Promise<void> {
+    this.wireControlChannel(this.pc.createDataChannel('control'))
     for (const track of stream.getTracks()) {
       this.pc.addTrack(track, stream)
     }

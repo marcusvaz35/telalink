@@ -3,12 +3,15 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import { ViewerWindowApp } from './ViewerWindowApp'
 import { SpoutOutApp } from './SpoutOutApp'
+import { ControlOverlayApp } from './ControlOverlayApp'
 import './styles/global.css'
 
 const params = new URLSearchParams(window.location.search)
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement)
 
-if (params.get('view') === 'spout-out') {
+if (params.get('view') === 'control-overlay') {
+  root.render(<ControlOverlayApp peerName={params.get('peerName') ?? 'Alguém'} />)
+} else if (params.get('view') === 'spout-out') {
   root.render(<SpoutOutApp />)
 } else if (params.get('view') === 'viewer') {
   const requestId = params.get('requestId') ?? ''

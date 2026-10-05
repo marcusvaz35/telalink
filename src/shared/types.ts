@@ -102,7 +102,24 @@ export interface ScreenSource {
   name: string
   kind: 'screen' | 'window'
   thumbnailDataUrl: string
+  /** Só em fontes do tipo tela: id do monitor, usado pra mapear cliques no controle remoto. */
+  displayId?: string
 }
+
+/** Evento de entrada que quem está vendo manda pra quem compartilha (controle remoto). */
+export type RemoteInputEvent =
+  | { t: 'move'; x: number; y: number }
+  | { t: 'down' | 'up'; x: number; y: number; button: 0 | 1 | 2; clicks: number }
+  | { t: 'wheel'; dx: number; dy: number }
+  | { t: 'key'; down: boolean; code: string; key: string; ctrl: boolean; alt: boolean; shift: boolean; meta: boolean }
+
+/** Mensagens do canal de controle (RTCDataChannel) entre quem vê e quem compartilha. */
+export type ControlMessage =
+  | { t: 'hello'; platform: DeviceType }
+  | { t: 'request' }
+  | { t: 'release' }
+  | { t: 'state'; state: 'granted' | 'denied' | 'revoked' | 'unavailable'; reason?: string }
+  | RemoteInputEvent
 
 export interface ConnectionRole {
   role: 'sharer' | 'viewer'

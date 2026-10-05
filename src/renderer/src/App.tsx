@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   DeviceInfo,
+  DeviceType,
   DiscoveredDevice,
   IncomingRequestPayload,
   ScreenSource,
@@ -20,6 +21,7 @@ import { IncomingSharePicker } from './components/IncomingSharePicker'
 import { Toast } from './components/Toast'
 import { UpdateBanner } from './components/UpdateBanner'
 import { ManualConnectModal } from './components/ManualConnectModal'
+import { ControlRequestModal } from './components/ControlRequestModal'
 
 /** Extrai a mensagem de verdade de um erro de IPC, sem o prefixo técnico do Electron. */
 function connectionErrorMessage(err: unknown): string {
@@ -64,6 +66,7 @@ interface SharingState {
   peer: DeviceInfo
   sourceName: string
   localStream: MediaStream
+  displayId?: string
 }
 
 interface WebShareState {
@@ -90,6 +93,11 @@ export default function App(): JSX.Element {
   const [prefillTargetId, setPrefillTargetId] = useState<string | null>(null)
   const [manualDevices, setManualDevices] = useState<DiscoveredDevice[]>([])
   const [manualConnectOpen, setManualConnectOpen] = useState(false)
+
+  const [controlRequest, setControlRequest] = useState<{ requestId: string; peerName: string; displayId: string } | null>(null)
+  const [controlActiveFor, setControlActiveFor] = useState<string | null>(null)
+  const controlActiveRef = useRef<string | null>(null)
+  const viewerPlatforms = useRef(new Map<string, DeviceType>())
 
   const peerSessions = useRef(new Map<string, PeerSession>())
   const pendingOutgoing = useRef<PendingOutgoing | null>(null)
@@ -132,8 +140,27 @@ export default function App(): JSX.Element {
           if (state === 'failed') notify('Conexão perdida. Tentando reconectar…', 'error')
         }
         peerSessions.current.set(requestId, session)
+        session.onControlMessage = (msg) => {
+          if (msg.t === 'hello') {
+            viewerPlatforms.current.set(requestId, msg.platform)
+          } else if (msg.t === 'request') {
+            if (!source.displayId) {
+              session.sendControl({
+                t: 'state',
+                state: 'unavailable',
+                reason: 'Só dá pra controlar quando uma tela inteira está sendo compartilhada (não uma janela).'
+              })
+            } else {
+              setControlRequest({ requestId, peerName: target.name, displayId: source.displayId })
+            }
+          } else if (msg.t === 'release') {
+            void window.telalink.revokeControl(requestId)
+          } else if (msg.t !== 'state' && controlActiveRef.current === requestId) {
+            window.telalink.sendControlEvent(requestId, msg)
+          }
+        }
         await session.startAsSharer(stream)
-        setSharing({ requestId, peer: target, sourceName: source.name, localStream: stream })
+        setSharing({ requestId, peer: target, sourceName: source.name, localStream: stream, displayId: source.displayId })
         setView('sharing')
         window.telalink.addHistory({ deviceId: target.id, deviceName: target.name, direction: 'shared-to' })
       } catch (err) {
@@ -246,6 +273,15 @@ export default function App(): JSX.Element {
       })
     })
 
+    const offControlRevoked = window.telalink.onControlRevoked((requestId) => {
+      if (controlActiveRef.current === requestId) {
+        controlActiveRef.current = null
+        setControlActiveFor(null)
+        peerSessions.current.get(requestId)?.sendControl({ t: 'state', state: 'revoked' })
+        notify('Controle remoto encerrado.')
+      }
+    })
+
     const offUpdateAvailable = window.telalink.onUpdateAvailable((info) => {
       setUpdateInfo({ version: info.version, url: info.url })
     })
@@ -258,6 +294,7 @@ export default function App(): JSX.Element {
       offClosed()
       offSwapNavigate()
       offWebConnected()
+      offControlRevoked()
       offUpdateAvailable()
     }
   }, [cleanupSession, notify, openViewerFor, startSharingFlow])
@@ -339,8 +376,34 @@ export default function App(): JSX.Element {
     setPickingSourceFor(null)
   }
 
+  const handleControlDecision = async (allow: boolean): Promise<void> => {
+    const request = controlRequest
+    if (!request) return
+    setControlRequest(null)
+    const session = peerSessions.current.get(request.requestId)
+    if (!allow) {
+      session?.sendControl({ t: 'state', state: 'denied' })
+      return
+    }
+    const result = await window.telalink.grantControl(
+      request.requestId,
+      request.displayId,
+      viewerPlatforms.current.get(request.requestId) ?? 'unknown',
+      request.peerName
+    )
+    if (result.ok) {
+      controlActiveRef.current = request.requestId
+      setControlActiveFor(request.requestId)
+      session?.sendControl({ t: 'state', state: 'granted' })
+    } else {
+      session?.sendControl({ t: 'state', state: 'unavailable', reason: result.reason })
+      notify(result.reason ?? 'Não foi possível liberar o controle.', 'error')
+    }
+  }
+
   const handleStopSharing = (): void => {
     if (!sharing) return
+    void window.telalink.revokeControl(sharing.requestId)
     userHangup.current.add(sharing.requestId)
     window.telalink.hangup(sharing.requestId)
     cleanupSession(sharing.requestId)
@@ -445,7 +508,13 @@ export default function App(): JSX.Element {
       )}
 
       {view === 'sharing' && sharing && (
-        <ShareControlBar peerName={sharing.peer.name} sourceName={sharing.sourceName} onStop={handleStopSharing} />
+        <ShareControlBar
+          peerName={sharing.peer.name}
+          sourceName={sharing.sourceName}
+          onStop={handleStopSharing}
+          controlActive={controlActiveFor === sharing.requestId}
+          onStopControl={() => void window.telalink.revokeControl(sharing.requestId)}
+        />
       )}
 
       {view === 'web-share' && (
@@ -472,6 +541,10 @@ export default function App(): JSX.Element {
 
       {manualConnectOpen && (
         <ManualConnectModal onClose={() => setManualConnectOpen(false)} onAdd={handleAddManualDevice} />
+      )}
+
+      {controlRequest && (
+        <ControlRequestModal peerName={controlRequest.peerName} onDecide={(allow) => void handleControlDecision(allow)} />
       )}
 
       {toast && <Toast message={toast.message} tone={toast.tone} />}

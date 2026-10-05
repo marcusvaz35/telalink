@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   DeviceInfo,
+  DeviceType,
+  RemoteInputEvent,
   DiscoveredDevice,
   IncomingRequestPayload,
   RequestKind,
@@ -98,7 +100,26 @@ const api = {
     ipcRenderer.on('texture:frame-in', listener)
     return () => ipcRenderer.removeListener('texture:frame-in', listener)
   },
-  stopTextureShare: (requestId: string): Promise<void> => ipcRenderer.invoke('texture:stop', requestId)
+  stopTextureShare: (requestId: string): Promise<void> => ipcRenderer.invoke('texture:stop', requestId),
+
+  grantControl: (
+    requestId: string,
+    displayId: string | undefined,
+    viewerPlatform: DeviceType,
+    peerName: string
+  ): Promise<{ ok: boolean; reason?: string }> =>
+    ipcRenderer.invoke('control:grant', requestId, displayId, viewerPlatform, peerName),
+  revokeControl: (requestId: string): Promise<void> => ipcRenderer.invoke('control:revoke', requestId),
+  setKeyCapture: (capture: boolean): Promise<void> => ipcRenderer.invoke('control:key-capture', capture),
+  revokeAllControl: (): Promise<void> => ipcRenderer.invoke('control:revoke-all'),
+  sendControlEvent: (requestId: string, ev: RemoteInputEvent): void => {
+    ipcRenderer.send('control:event', requestId, ev)
+  },
+  onControlRevoked: (cb: (requestId: string) => void) => {
+    const listener = (_e: unknown, requestId: string) => cb(requestId)
+    ipcRenderer.on('control:revoked', listener)
+    return () => ipcRenderer.removeListener('control:revoked', listener)
+  }
 }
 
 contextBridge.exposeInMainWorld('telalink', api)

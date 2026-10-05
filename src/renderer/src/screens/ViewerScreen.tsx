@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { PeerSession, PeerSessionStats } from '../webrtc/PeerSession'
+import { useRemoteControl } from '../webrtc/useRemoteControl'
 import iconSyncWhite from '../assets/icons/icon_sync_white.png'
 import iconTransferWhite from '../assets/icons/icon_transfer_white.png'
 
@@ -35,6 +36,16 @@ export function ViewerScreen({ remoteStream, peerSession, peerName, onSwap, onDi
   const [stats, setStats] = useState<PeerSessionStats | null>(null)
   const [showStats, setShowStats] = useState(false)
   const [textureSharing, setTextureSharing] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const showNotice = useCallback((message: string) => {
+    setNotice(message)
+    if (noticeTimer.current) clearTimeout(noticeTimer.current)
+    noticeTimer.current = setTimeout(() => setNotice(null), 5000)
+  }, [])
+
+  const control = useRemoteControl(peerSession, videoRef, showNotice)
 
   useEffect(() => {
     if (videoRef.current) videoRef.current.srcObject = remoteStream
@@ -186,6 +197,25 @@ export function ViewerScreen({ remoteStream, peerSession, peerName, onSwap, onDi
         >
           <img src={iconSyncWhite} alt="" style={{ height: 16 }} />
         </IconButton>
+        <button
+          title="Controlar o computador de quem está compartilhando"
+          onClick={() => (control.state === 'active' ? control.stop() : control.request())}
+          disabled={control.state === 'requesting'}
+          style={{
+            height: 38,
+            borderRadius: 10,
+            border: 'none',
+            padding: '0 12px',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: control.state === 'requesting' ? 'default' : 'pointer',
+            color: 'white',
+            background: control.state === 'active' ? 'rgba(239,68,68,0.85)' : 'var(--tl-gradient-strong)',
+            opacity: control.state === 'requesting' ? 0.6 : 1
+          }}
+        >
+          {control.state === 'active' ? 'Parar controle' : control.state === 'requesting' ? 'Aguardando…' : 'Controlar'}
+        </button>
         <IconButton label="Trocar compartilhamento" onClick={onSwap}>
           <img src={iconTransferWhite} alt="" style={{ height: 14 }} />
         </IconButton>
@@ -207,8 +237,28 @@ export function ViewerScreen({ remoteStream, peerSession, peerName, onSwap, onDi
           color: 'var(--tl-text)'
         }}
       >
-        Recebendo de {peerName}
+        {control.state === 'active' ? `Controlando ${peerName}` : `Recebendo de ${peerName}`}
       </div>
+
+      {notice && (
+        <div
+          className="tl-fade-in"
+          style={{
+            position: 'absolute',
+            top: 52,
+            right: 12,
+            maxWidth: 320,
+            background: 'rgba(10,15,30,0.9)',
+            border: '1px solid var(--tl-border)',
+            borderRadius: 10,
+            padding: '8px 12px',
+            fontSize: 12,
+            color: 'var(--tl-text)'
+          }}
+        >
+          {notice}
+        </div>
+      )}
     </div>
   )
 }

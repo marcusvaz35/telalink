@@ -2,9 +2,17 @@ interface ShareControlBarProps {
   peerName: string
   sourceName: string
   onStop: () => void
+  controlActive?: boolean
+  onStopControl?: () => void
 }
 
-export function ShareControlBar({ peerName, sourceName, onStop }: ShareControlBarProps): JSX.Element {
+export function ShareControlBar({
+  peerName,
+  sourceName,
+  onStop,
+  controlActive,
+  onStopControl
+}: ShareControlBarProps): JSX.Element {
   return (
     <div
       className="tl-card tl-fade-in"
@@ -16,6 +24,7 @@ export function ShareControlBar({ peerName, sourceName, onStop }: ShareControlBa
         padding: '14px 16px',
         display: 'flex',
         alignItems: 'center',
+        flexWrap: 'wrap',
         gap: 12,
         boxShadow: 'var(--tl-shadow)'
       }}
@@ -24,7 +33,15 @@ export function ShareControlBar({ peerName, sourceName, onStop }: ShareControlBa
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 600, fontSize: 13 }}>Compartilhando com {peerName}</div>
         <div style={{ fontSize: 12, color: 'var(--tl-text-dim)' }}>{sourceName}</div>
+        {controlActive && (
+          <div style={{ fontSize: 12, color: '#fca5a5', marginTop: 2 }}>{peerName} está controlando este computador</div>
+        )}
       </div>
+      {controlActive && (
+        <button className="tl-btn tl-btn-danger" style={{ padding: '8px 14px', fontSize: 13 }} onClick={onStopControl}>
+          Parar controle
+        </button>
+      )}
       <button className="tl-btn tl-btn-danger" style={{ padding: '8px 14px', fontSize: 13 }} onClick={onStop}>
         Parar compartilhamento
       </button>
