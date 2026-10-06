@@ -17,6 +17,7 @@ interface StoreData {
   trustedDeviceIds: string[]
   blockedDeviceIds: string[]
   history: ConnectionHistoryEntry[]
+  showControlIndicator: boolean
 }
 
 function detectDeviceType(): DeviceType {
@@ -56,7 +57,8 @@ class Store {
           device: raw.device ?? { id: randomUUID(), name: defaultDeviceName(), type: detectDeviceType() },
           trustedDeviceIds: raw.trustedDeviceIds ?? [],
           blockedDeviceIds: raw.blockedDeviceIds ?? [],
-          history: raw.history ?? []
+          history: raw.history ?? [],
+          showControlIndicator: raw.showControlIndicator ?? false
         }
       } catch {
         // arquivo corrompido, recria
@@ -66,7 +68,8 @@ class Store {
       device: { id: randomUUID(), name: defaultDeviceName(), type: detectDeviceType() },
       trustedDeviceIds: [],
       blockedDeviceIds: [],
-      history: []
+      history: [],
+      showControlIndicator: false
     }
     this.persist(fresh)
     return fresh
@@ -124,6 +127,15 @@ class Store {
 
   getHistory(): ConnectionHistoryEntry[] {
     return this.data.history
+  }
+
+  getShowControlIndicator(): boolean {
+    return this.data.showControlIndicator
+  }
+
+  setShowControlIndicator(show: boolean): void {
+    this.data.showControlIndicator = show
+    this.persist()
   }
 
   getTrustedIds(): string[] {

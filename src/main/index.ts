@@ -42,8 +42,10 @@ const discovery: IDiscovery = new MergedDiscovery([
   process.platform === 'darwin' ? new DiscoveryMac() : new Discovery(),
   new BroadcastDiscovery()
 ])
-const remoteControl = new RemoteControl(join(__dirname, '../preload/index.js'), (win, peerName) =>
-  loadRenderer(win, { view: 'control-overlay', peerName })
+const remoteControl = new RemoteControl(
+  join(__dirname, '../preload/index.js'),
+  (win, peerName) => loadRenderer(win, { view: 'control-overlay', peerName }),
+  () => store.getShowControlIndicator()
 )
 let signaling: Signaling
 let signalPort = 0
@@ -427,7 +429,21 @@ function buildAppMenu(): void {
     { role: 'windowMenu' },
     {
       label: 'Ajuda',
-      submenu: [{ label: `TelaLink v${app.getVersion()}`, enabled: false }, { type: 'separator' }, checkItem]
+      submenu: [
+        { label: `TelaLink v${app.getVersion()}`, enabled: false },
+        { type: 'separator' },
+        checkItem,
+        { type: 'separator' },
+        {
+          label: 'Mostrar faixa de aviso durante o controle remoto',
+          type: 'checkbox',
+          checked: store.getShowControlIndicator(),
+          click: (item) => {
+            store.setShowControlIndicator(item.checked)
+            remoteControl.refreshIndicator()
+          }
+        }
+      ]
     }
   ]
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))

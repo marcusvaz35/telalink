@@ -100,6 +100,7 @@ export class RemoteControl extends EventEmitter {
   private grants = new Map<string, Grant>()
   private lib: Libnut | null = null
   private overlay: BrowserWindow | null = null
+  private overlayInfo: { displayId: string; peerName: string } | null = null
 
   private native(): Libnut {
     if (!this.lib) {
@@ -152,7 +153,8 @@ export class RemoteControl extends EventEmitter {
     if (this.grants.size === 1) {
       globalShortcut.register(KILL_SWITCH, () => this.revokeAll())
     }
-    this.showOverlay(displayId, peerName)
+    this.overlayInfo = { displayId, peerName }
+    if (this.shouldShowIndicator()) this.showOverlay(displayId, peerName)
     return { ok: true }
   }
 
@@ -164,8 +166,16 @@ export class RemoteControl extends EventEmitter {
     if (this.grants.size === 0) {
       globalShortcut.unregister(KILL_SWITCH)
       this.hideOverlay()
+      this.overlayInfo = null
     }
     this.emit('revoked', requestId)
+  }
+
+  /** Chamado quando a preferência de mostrar a faixa muda com um controle já em andamento. */
+  refreshIndicator(): void {
+    if (this.grants.size === 0 || !this.overlayInfo) return
+    if (this.shouldShowIndicator()) this.showOverlay(this.overlayInfo.displayId, this.overlayInfo.peerName)
+    else this.hideOverlay()
   }
 
   revokeAll(): void {
@@ -339,6 +349,9 @@ export class RemoteControl extends EventEmitter {
         nodeIntegration: false
       }
     })
+    // A faixa não entra na captura: quem controla vê a tela limpa, só quem
+    // está na frente deste computador enxerga o aviso.
+    win.setContentProtection(true)
     win.setAlwaysOnTop(true, 'screen-saver')
     win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
     win.once('ready-to-show', () => win.showInactive())
@@ -353,7 +366,8 @@ export class RemoteControl extends EventEmitter {
 
   constructor(
     private preloadPath: string,
-    private overlayLoader: (win: BrowserWindow, peerName: string) => void
+    private overlayLoader: (win: BrowserWindow, peerName: string) => void,
+    private shouldShowIndicator: () => boolean
   ) {
     super()
   }
