@@ -15,6 +15,7 @@ interface GithubAsset {
 
 interface GithubRelease {
   tag_name: string
+  draft?: boolean
   html_url: string
   body: string | null
   assets: GithubAsset[]
@@ -40,13 +41,20 @@ export type UpdateCheckResult =
 /** Distingue "já está na última versão" de "não consegui checar" (sem internet, limite do GitHub...). */
 export async function checkForUpdateResult(): Promise<UpdateCheckResult> {
   try {
-    const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+    // Lista (em vez de /releases/latest) pra enxergar também as versões de
+    // teste: /latest ignora tudo que foi publicado como "pre-release".
+    const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=30`, {
       headers: { Accept: 'application/vnd.github+json' }
     })
     if (!res.ok) return { status: 'error' }
 
-    const data = (await res.json()) as GithubRelease
-    const latestVersion = (data.tag_name ?? '').replace(/^v/, '')
+    const releases = ((await res.json()) as GithubRelease[]).filter((r) => !r.draft && /^v?\d+(\.\d+)*$/.test(r.tag_name ?? ''))
+    const data = releases.reduce<GithubRelease | null>(
+      (best, r) => (!best || isNewer(r.tag_name.replace(/^v/, ''), best.tag_name.replace(/^v/, '')) ? r : best),
+      null
+    )
+    if (!data) return { status: 'error' }
+    const latestVersion = data.tag_name.replace(/^v/, '')
     const currentVersion = app.getVersion()
     if (!latestVersion) return { status: 'error' }
     if (!isNewer(latestVersion, currentVersion)) return { status: 'latest', currentVersion }
