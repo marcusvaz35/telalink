@@ -10,7 +10,6 @@ import { MergedDiscovery } from './discoveryMerged'
 import { Signaling } from './signaling'
 import { getLanIp } from './network'
 import { checkForUpdate, checkForUpdateResult } from './updateCheck'
-import { TextureSender } from '@napolab/texture-bridge'
 import { SpoutOutput } from './spoutWin'
 import { RemoteControl } from './remoteControl'
 import type { DeviceInfo, DeviceType, RemoteInputEvent, RequestKind, ScreenSource, SignalMessage } from '../shared/types'
@@ -325,6 +324,8 @@ function registerIpc(): void {
         )
         textureSenders.set(requestId, { push: (d, w, h) => spout.push(d, w, h), stop: () => spout.stop() })
       } else {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { TextureSender } = require('@napolab/texture-bridge') as typeof import('@napolab/texture-bridge')
         const sender = new TextureSender(name, width, height)
         textureSenders.set(requestId, {
           push: (d, w, h) => sender.sendRgbaBuffer(Buffer.from(d.buffer, d.byteOffset, d.byteLength), w, h),
@@ -334,6 +335,7 @@ function registerIpc(): void {
       return true
     } catch (err) {
       console.log(`[texture] não foi possível iniciar: ${(err as Error).message}`)
+      if (process.platform === 'win32') void offerVcRedist()
       return false
     }
   })
@@ -364,6 +366,26 @@ function registerIpc(): void {
     textureSenders.get(requestId)?.stop()
     textureSenders.delete(requestId)
   })
+}
+
+let vcRedistOffered = false
+
+/** A saída Spout precisa do Visual C++ Redistributable; sem ele o módulo nativo não abre. */
+async function offerVcRedist(): Promise<void> {
+  if (vcRedistOffered) return
+  vcRedistOffered = true
+  const { response } = await dialog.showMessageBox({
+    type: 'info',
+    buttons: ['Baixar componente', 'Agora não'],
+    defaultId: 0,
+    cancelId: 1,
+    title: 'TelaLink',
+    message: 'Falta um componente do Windows pra enviar a tela pro Resolume',
+    detail:
+      'O Windows deste computador não tem o "Microsoft Visual C++ Redistributable". ' +
+      'Baixe e instale (é gratuito, da Microsoft) e abra o TelaLink de novo. O resto do programa funciona normalmente.'
+  })
+  if (response === 0) void shell.openExternal('https://aka.ms/vs/17/release/vc_redist.x64.exe')
 }
 
 async function manualUpdateCheck(): Promise<void> {
