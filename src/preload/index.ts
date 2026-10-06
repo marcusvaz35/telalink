@@ -88,6 +88,13 @@ const api = {
     ipcRenderer.on('update:available', listener)
     return () => ipcRenderer.removeListener('update:available', listener)
   },
+  getAppVersion: (): Promise<string> => ipcRenderer.invoke('app:version'),
+  checkForUpdateNow: (): Promise<void> => ipcRenderer.invoke('update:check'),
+  onUpdateResult: (cb: (result: { status: 'update' | 'latest' | 'error'; currentVersion: string }) => void) => {
+    const listener = (_e: unknown, result: { status: 'update' | 'latest' | 'error'; currentVersion: string }) => cb(result)
+    ipcRenderer.on('update:result', listener)
+    return () => ipcRenderer.removeListener('update:result', listener)
+  },
   openUpdateDownload: (url: string): Promise<void> => ipcRenderer.invoke('update:open-download', url),
 
   startTextureShare: (requestId: string, name: string, width: number, height: number): Promise<boolean> =>

@@ -22,6 +22,7 @@ import { Toast } from './components/Toast'
 import { UpdateBanner } from './components/UpdateBanner'
 import { ManualConnectModal } from './components/ManualConnectModal'
 import { ControlRequestModal } from './components/ControlRequestModal'
+import { AppFooter } from './components/AppFooter'
 
 /** Extrai a mensagem de verdade de um erro de IPC, sem o prefixo técnico do Electron. */
 function connectionErrorMessage(err: unknown): string {
@@ -94,6 +95,8 @@ export default function App(): JSX.Element {
   const [manualDevices, setManualDevices] = useState<DiscoveredDevice[]>([])
   const [manualConnectOpen, setManualConnectOpen] = useState(false)
 
+  const [appVersion, setAppVersion] = useState('')
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
   const [controlRequest, setControlRequest] = useState<{ requestId: string; peerName: string; displayId: string } | null>(null)
   const [controlActiveFor, setControlActiveFor] = useState<string | null>(null)
   const controlActiveRef = useRef<string | null>(null)
@@ -176,6 +179,7 @@ export default function App(): JSX.Element {
   // bootstrap: device info + discovery + sinalização
   useEffect(() => {
     window.telalink.getDevice().then(setDevice)
+    window.telalink.getAppVersion().then(setAppVersion)
     window.telalink.listDevices().then(setDevices)
 
     const offDevices = window.telalink.onDevicesUpdate(setDevices)
@@ -282,6 +286,13 @@ export default function App(): JSX.Element {
       }
     })
 
+    const offUpdateResult = window.telalink.onUpdateResult((result) => {
+      setCheckingUpdate(false)
+      if (result.status === 'latest') notify(`Você já está na versão mais recente (v${result.currentVersion}).`)
+      else if (result.status === 'update') notify('Nova versão disponível! Clique em "Baixar atualização".')
+      else notify('Não foi possível verificar agora. Confira sua internet e tente de novo.', 'error')
+    })
+
     const offUpdateAvailable = window.telalink.onUpdateAvailable((info) => {
       setUpdateInfo({ version: info.version, url: info.url })
     })
@@ -295,6 +306,7 @@ export default function App(): JSX.Element {
       offSwapNavigate()
       offWebConnected()
       offControlRevoked()
+      offUpdateResult()
       offUpdateAvailable()
     }
   }, [cleanupSession, notify, openViewerFor, startSharingFlow])
@@ -442,8 +454,14 @@ export default function App(): JSX.Element {
     setView('home')
   }
 
+  const handleCheckUpdate = (): void => {
+    setCheckingUpdate(true)
+    void window.telalink.checkForUpdateNow()
+  }
+
   return (
-    <div style={{ height: '100%' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
       {updateInfo && (
         <UpdateBanner
           version={updateInfo.version}
@@ -548,6 +566,8 @@ export default function App(): JSX.Element {
       )}
 
       {toast && <Toast message={toast.message} tone={toast.tone} />}
+      </div>
+      <AppFooter version={appVersion} checking={checkingUpdate} onCheckUpdate={handleCheckUpdate} />
     </div>
   )
 }

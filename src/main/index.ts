@@ -9,7 +9,7 @@ import { BroadcastDiscovery } from './discoveryBroadcast'
 import { MergedDiscovery } from './discoveryMerged'
 import { Signaling } from './signaling'
 import { getLanIp } from './network'
-import { checkForUpdate } from './updateCheck'
+import { checkForUpdate, checkForUpdateResult } from './updateCheck'
 import { TextureSender } from '@napolab/texture-bridge'
 import { SpoutOutput } from './spoutWin'
 import { RemoteControl } from './remoteControl'
@@ -301,6 +301,9 @@ function registerIpc(): void {
     signaling.cancelWebSession(requestId)
   })
 
+  ipcMain.handle('app:version', () => app.getVersion())
+  ipcMain.handle('update:check', () => manualUpdateCheck())
+
   ipcMain.handle('update:open-download', (_e, url: string) => {
     shell.openExternal(url)
   })
@@ -363,7 +366,53 @@ function registerIpc(): void {
   })
 }
 
+async function manualUpdateCheck(): Promise<void> {
+  const result = await checkForUpdateResult()
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  }
+  if (result.status === 'update') broadcast('update:available', result.info)
+  broadcast('update:result', { status: result.status, currentVersion: app.getVersion() })
+}
+
+function buildAppMenu(): void {
+  const checkItem: Electron.MenuItemConstructorOptions = {
+    label: 'Verificar atualizações…',
+    click: () => void manualUpdateCheck()
+  }
+  const isMac = process.platform === 'darwin'
+  const template: Electron.MenuItemConstructorOptions[] = [
+    ...(isMac
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { role: 'about' as const },
+              checkItem,
+              { type: 'separator' as const },
+              { role: 'hide' as const },
+              { role: 'hideOthers' as const },
+              { role: 'unhide' as const },
+              { type: 'separator' as const },
+              { role: 'quit' as const }
+            ]
+          }
+        ]
+      : []),
+    { role: 'editMenu' },
+    { role: 'windowMenu' },
+    {
+      label: 'Ajuda',
+      submenu: [{ label: `TelaLink v${app.getVersion()}`, enabled: false }, { type: 'separator' }, checkItem]
+    }
+  ]
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
 app.whenReady().then(async () => {
+  buildAppMenu()
   registerIpc()
   createWindow()
   await bootstrapNetworking()

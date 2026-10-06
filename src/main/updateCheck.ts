@@ -32,27 +32,42 @@ function isNewer(latest: string, current: string): boolean {
   return false
 }
 
-export async function checkForUpdate(): Promise<UpdateInfo | null> {
+export type UpdateCheckResult =
+  | { status: 'update'; info: UpdateInfo }
+  | { status: 'latest'; currentVersion: string }
+  | { status: 'error' }
+
+/** Distingue "já está na última versão" de "não consegui checar" (sem internet, limite do GitHub...). */
+export async function checkForUpdateResult(): Promise<UpdateCheckResult> {
   try {
     const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
       headers: { Accept: 'application/vnd.github+json' }
     })
-    if (!res.ok) return null
+    if (!res.ok) return { status: 'error' }
 
     const data = (await res.json()) as GithubRelease
     const latestVersion = (data.tag_name ?? '').replace(/^v/, '')
     const currentVersion = app.getVersion()
-    if (!latestVersion || !isNewer(latestVersion, currentVersion)) return null
+    if (!latestVersion) return { status: 'error' }
+    if (!isNewer(latestVersion, currentVersion)) return { status: 'latest', currentVersion }
 
     const assetExt = process.platform === 'darwin' ? '.dmg' : process.platform === 'win32' ? '.exe' : null
     const asset = assetExt ? data.assets?.find((a) => a.name.endsWith(assetExt)) : undefined
 
     return {
-      version: latestVersion,
-      url: asset?.browser_download_url ?? data.html_url,
-      notes: data.body ?? ''
+      status: 'update',
+      info: {
+        version: latestVersion,
+        url: asset?.browser_download_url ?? data.html_url,
+        notes: data.body ?? ''
+      }
     }
   } catch {
-    return null
+    return { status: 'error' }
   }
+}
+
+export async function checkForUpdate(): Promise<UpdateInfo | null> {
+  const result = await checkForUpdateResult()
+  return result.status === 'update' ? result.info : null
 }

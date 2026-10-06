@@ -18,7 +18,7 @@ export function ShareControlBar({
       className="tl-card tl-fade-in"
       style={{
         position: 'fixed',
-        bottom: 20,
+        bottom: 40,
         left: 20,
         right: 20,
         padding: '14px 16px',
