@@ -86,6 +86,12 @@ export class PeerSession {
     window.telalink.sendSignal({ type: 'offer', requestId: this.requestId, sdp: offer })
   }
 
+  /** Troca o vídeo enviado (ex.: outro monitor) sem renegociar a conexão. */
+  async replaceVideoTrack(track: MediaStreamTrack): Promise<void> {
+    const sender = this.pc.getSenders().find((s) => s.track?.kind === 'video')
+    await sender?.replaceTrack(track)
+  }
+
   async handleSignal(message: SignalMessage): Promise<void> {
     if (message.requestId !== this.requestId) return
 

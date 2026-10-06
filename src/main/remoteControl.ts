@@ -158,6 +158,13 @@ export class RemoteControl extends EventEmitter {
     return { ok: true }
   }
 
+  setDisplay(requestId: string, displayId: string): void {
+    const grant = this.grants.get(requestId)
+    if (!grant) return
+    grant.displayId = displayId
+    if (this.overlayInfo) this.overlayInfo.displayId = displayId
+  }
+
   revoke(requestId: string): void {
     const grant = this.grants.get(requestId)
     if (!grant) return

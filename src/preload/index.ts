@@ -116,6 +116,10 @@ const api = {
     peerName: string
   ): Promise<{ ok: boolean; reason?: string }> =>
     ipcRenderer.invoke('control:grant', requestId, displayId, viewerPlatform, peerName),
+  listScreens: (): Promise<{ id: string; displayId: string; label: string }[]> =>
+    ipcRenderer.invoke('control:list-screens'),
+  setControlDisplay: (requestId: string, displayId: string): Promise<void> =>
+    ipcRenderer.invoke('control:set-display', requestId, displayId),
   revokeControl: (requestId: string): Promise<void> => ipcRenderer.invoke('control:revoke', requestId),
   setKeyCapture: (capture: boolean): Promise<void> => ipcRenderer.invoke('control:key-capture', capture),
   revokeAllControl: (): Promise<void> => ipcRenderer.invoke('control:revoke-all'),

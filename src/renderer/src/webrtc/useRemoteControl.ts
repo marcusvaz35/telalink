@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
-import type { ControlMessage, DeviceType } from '../../../shared/types'
+import type { ControlMessage, DeviceType, ScreenChoice } from '../../../shared/types'
 import type { PeerSession } from './PeerSession'
 
 export type RemoteControlState = 'idle' | 'requesting' | 'active'
@@ -18,9 +18,18 @@ export function useRemoteControl(
   peerSession: PeerSession,
   videoRef: RefObject<HTMLVideoElement>,
   onNotice: (message: string) => void
-): { state: RemoteControlState; request: () => void; stop: () => void } {
+): {
+  state: RemoteControlState
+  request: () => void
+  stop: () => void
+  screens: ScreenChoice[]
+  currentScreen: string | null
+  switchScreen: (id: string) => void
+} {
   const [state, setState] = useState<RemoteControlState>('idle')
   const stateRef = useRef<RemoteControlState>('idle')
+  const [screens, setScreens] = useState<ScreenChoice[]>([])
+  const [currentScreen, setCurrentScreen] = useState<string | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const update = useCallback((next: RemoteControlState) => {
@@ -30,10 +39,16 @@ export function useRemoteControl(
 
   useEffect(() => {
     peerSession.onControlMessage = (msg: ControlMessage) => {
+      if (msg.t === 'screens') {
+        setScreens(msg.screens)
+        setCurrentScreen(msg.current)
+        return
+      }
       if (msg.t !== 'state') return
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
       if (msg.state === 'granted') {
         update('active')
+        peerSession.sendControl({ t: 'screens-request' })
         onNotice('Controle liberado. Clique em "Parar controle" pra sair.')
       } else if (msg.state === 'denied') {
         update('idle')
@@ -68,7 +83,16 @@ export function useRemoteControl(
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
     peerSession.sendControl({ t: 'release' })
     update('idle')
+    setScreens([])
+    setCurrentScreen(null)
   }, [peerSession, update])
+
+  const switchScreen = useCallback(
+    (id: string) => {
+      peerSession.sendControl({ t: 'switch-screen', id })
+    },
+    [peerSession]
+  )
 
   useEffect(() => {
     if (state !== 'active') return
@@ -174,5 +198,5 @@ export function useRemoteControl(
     []
   )
 
-  return { state, request, stop }
+  return { state, request, stop, screens, currentScreen, switchScreen }
 }

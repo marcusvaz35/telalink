@@ -360,6 +360,24 @@ function registerIpc(): void {
       remoteControl.grant(requestId, displayId, viewerPlatform, String(peerName).slice(0, 80))
   )
   ipcMain.handle('control:revoke', (_e, requestId: string) => remoteControl.revoke(requestId))
+  ipcMain.handle('control:set-display', (_e, requestId: string, displayId: string) =>
+    remoteControl.setDisplay(requestId, String(displayId))
+  )
+  ipcMain.handle('control:list-screens', async () => {
+    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } })
+    const displays = screen.getAllDisplays()
+    const rows = sources
+      .map((s) => ({ s, d: displays.find((d) => String(d.id) === s.display_id) }))
+      .sort((a, b) => (a.d?.bounds.x ?? 0) - (b.d?.bounds.x ?? 0) || (a.d?.bounds.y ?? 0) - (b.d?.bounds.y ?? 0))
+    const primaryId = screen.getPrimaryDisplay().id
+    return rows.map(({ s, d }, i) => ({
+      id: s.id,
+      displayId: s.display_id,
+      label: d
+        ? `Monitor ${i + 1}${d.id === primaryId ? ' (principal)' : ''} · ${Math.round(d.size.width * d.scaleFactor)}×${Math.round(d.size.height * d.scaleFactor)}`
+        : `Monitor ${i + 1}`
+    }))
+  })
   ipcMain.handle('control:key-capture', (_e, capture: boolean) => setKeyCapture(capture))
   ipcMain.handle('control:revoke-all', () => remoteControl.revokeAll())
   ipcMain.on('control:event', (_e, requestId: string, ev: RemoteInputEvent) => remoteControl.handle(requestId, ev))

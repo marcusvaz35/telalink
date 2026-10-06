@@ -37,6 +37,7 @@ export function ViewerScreen({ remoteStream, peerSession, peerName, onSwap, onDi
   const [showStats, setShowStats] = useState(false)
   const [textureSharing, setTextureSharing] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [screenMenuOpen, setScreenMenuOpen] = useState(false)
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const showNotice = useCallback((message: string) => {
@@ -197,6 +198,25 @@ export function ViewerScreen({ remoteStream, peerSession, peerName, onSwap, onDi
         >
           <img src={iconSyncWhite} alt="" style={{ height: 16 }} />
         </IconButton>
+        {control.state === 'active' && control.screens.length > 1 && (
+          <button
+            title="Escolher qual monitor ver"
+            onClick={() => setScreenMenuOpen((v) => !v)}
+            style={{
+              height: 38,
+              borderRadius: 10,
+              border: 'none',
+              padding: '0 12px',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+              color: 'var(--tl-text)',
+              background: screenMenuOpen ? 'var(--tl-gradient-strong)' : 'rgba(255,255,255,0.08)'
+            }}
+          >
+            Monitor {control.screens.findIndex((s) => s.id === control.currentScreen) + 1}
+          </button>
+        )}
         <button
           title="Controlar o computador de quem está compartilhando"
           onClick={() => (control.state === 'active' ? control.stop() : control.request())}
@@ -239,6 +259,48 @@ export function ViewerScreen({ remoteStream, peerSession, peerName, onSwap, onDi
       >
         {control.state === 'active' ? `Controlando ${peerName}` : `Recebendo de ${peerName}`}
       </div>
+
+      {screenMenuOpen && control.state === 'active' && control.screens.length > 1 && (
+        <div
+          className="tl-fade-in"
+          style={{
+            position: 'absolute',
+            bottom: 72,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+            minWidth: 240,
+            background: 'rgba(10,15,30,0.95)',
+            border: '1px solid var(--tl-border)',
+            borderRadius: 12,
+            padding: 6
+          }}
+        >
+          {control.screens.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => {
+                control.switchScreen(s.id)
+                setScreenMenuOpen(false)
+              }}
+              style={{
+                textAlign: 'left',
+                border: 'none',
+                borderRadius: 8,
+                padding: '9px 12px',
+                fontSize: 13,
+                cursor: 'pointer',
+                color: 'var(--tl-text)',
+                background: s.id === control.currentScreen ? 'var(--tl-gradient-strong)' : 'transparent'
+              }}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {notice && (
         <div

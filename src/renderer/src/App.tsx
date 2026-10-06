@@ -143,7 +143,42 @@ export default function App(): JSX.Element {
           if (state === 'failed') notify('Conexão perdida. Tentando reconectar…', 'error')
         }
         peerSessions.current.set(requestId, session)
+        let currentScreenId = source.id
+        const sendScreens = async (): Promise<void> => {
+          const screens = await window.telalink.listScreens()
+          session.sendControl({
+            t: 'screens',
+            screens: screens.map(({ id, label }) => ({ id, label })),
+            current: currentScreenId
+          })
+        }
+        const switchScreen = async (id: string): Promise<void> => {
+          const screens = await window.telalink.listScreens()
+          const target = screens.find((s) => s.id === id)
+          if (!target || target.id === currentScreenId) return
+          const next = await captureSource(target.id, preset, false)
+          const nextTrack = next.getVideoTracks()[0]
+          await session.replaceVideoTrack(nextTrack)
+          for (const old of stream.getVideoTracks()) {
+            old.stop()
+            stream.removeTrack(old)
+          }
+          stream.addTrack(nextTrack)
+          currentScreenId = target.id
+          await window.telalink.setControlDisplay(requestId, target.displayId)
+          setSharing((cur) =>
+            cur?.requestId === requestId ? { ...cur, sourceName: target.label, displayId: target.displayId } : cur
+          )
+          await sendScreens()
+        }
         session.onControlMessage = (msg) => {
+          if (msg.t === 'screens-request' || msg.t === 'switch-screen') {
+            // Só quem já recebeu permissão de controle pode ver/trocar monitores.
+            if (controlActiveRef.current !== requestId) return
+            if (msg.t === 'screens-request') void sendScreens()
+            else void switchScreen(msg.id).catch((err) => console.error('[control] troca de monitor falhou', err))
+            return
+          }
           if (msg.t === 'hello') {
             viewerPlatforms.current.set(requestId, msg.platform)
           } else if (msg.t === 'request') {
@@ -158,7 +193,10 @@ export default function App(): JSX.Element {
             }
           } else if (msg.t === 'release') {
             void window.telalink.revokeControl(requestId)
-          } else if (msg.t !== 'state' && controlActiveRef.current === requestId) {
+          } else if (
+            (msg.t === 'move' || msg.t === 'down' || msg.t === 'up' || msg.t === 'wheel' || msg.t === 'key') &&
+            controlActiveRef.current === requestId
+          ) {
             window.telalink.sendControlEvent(requestId, msg)
           }
         }

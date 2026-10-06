@@ -106,6 +106,12 @@ export interface ScreenSource {
   displayId?: string
 }
 
+/** Monitor do computador compartilhado que quem controla pode escolher ver. */
+export interface ScreenChoice {
+  id: string
+  label: string
+}
+
 /** Evento de entrada que quem está vendo manda pra quem compartilha (controle remoto). */
 export type RemoteInputEvent =
   | { t: 'move'; x: number; y: number }
@@ -118,6 +124,9 @@ export type ControlMessage =
   | { t: 'hello'; platform: DeviceType }
   | { t: 'request' }
   | { t: 'release' }
+  | { t: 'screens-request' }
+  | { t: 'screens'; screens: ScreenChoice[]; current: string }
+  | { t: 'switch-screen'; id: string }
   | { t: 'state'; state: 'granted' | 'denied' | 'revoked' | 'unavailable'; reason?: string }
   | RemoteInputEvent
 
