@@ -8,6 +8,7 @@ interface ViewerScreenProps {
   remoteStream: MediaStream
   peerSession: PeerSession
   peerName: string
+  peerId: string
   onSwap: () => void
   onDisconnect: () => void
 }
@@ -29,7 +30,7 @@ function toBgra(rgba: Uint8ClampedArray): Uint8Array {
   return out
 }
 
-export function ViewerScreen({ remoteStream, peerSession, peerName, onSwap, onDisconnect }: ViewerScreenProps): JSX.Element {
+export function ViewerScreen({ remoteStream, peerSession, peerName, peerId, onSwap, onDisconnect }: ViewerScreenProps): JSX.Element {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -46,7 +47,7 @@ export function ViewerScreen({ remoteStream, peerSession, peerName, onSwap, onDi
     noticeTimer.current = setTimeout(() => setNotice(null), 5000)
   }, [])
 
-  const control = useRemoteControl(peerSession, videoRef, showNotice)
+  const control = useRemoteControl(peerSession, videoRef, showNotice, peerId)
 
   useEffect(() => {
     if (videoRef.current) videoRef.current.srcObject = remoteStream

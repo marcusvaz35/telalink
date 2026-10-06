@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import { randomUUID } from 'crypto'
+import { randomUUID, timingSafeEqual } from 'crypto'
 import os from 'os'
 import type { DeviceInfo, DeviceType } from '../shared/types'
 
@@ -18,6 +18,11 @@ interface StoreData {
   blockedDeviceIds: string[]
   history: ConnectionHistoryEntry[]
   showControlIndicator: boolean
+  keepInBackground: boolean
+  /** Quem pode controlar este computador sem pedir de novo: id do dispositivo -> segredo combinado. */
+  controlTrust: Record<string, string>
+  /** Segredos que este computador guarda pra controlar os outros: id do outro -> segredo. */
+  controlTokens: Record<string, string>
 }
 
 function detectDeviceType(): DeviceType {
@@ -58,7 +63,10 @@ class Store {
           trustedDeviceIds: raw.trustedDeviceIds ?? [],
           blockedDeviceIds: raw.blockedDeviceIds ?? [],
           history: raw.history ?? [],
-          showControlIndicator: raw.showControlIndicator ?? false
+          showControlIndicator: raw.showControlIndicator ?? false,
+          keepInBackground: raw.keepInBackground ?? true,
+          controlTrust: raw.controlTrust ?? {},
+          controlTokens: raw.controlTokens ?? {}
         }
       } catch {
         // arquivo corrompido, recria
@@ -69,7 +77,10 @@ class Store {
       trustedDeviceIds: [],
       blockedDeviceIds: [],
       history: [],
-      showControlIndicator: false
+      showControlIndicator: false,
+      keepInBackground: true,
+      controlTrust: {},
+      controlTokens: {}
     }
     this.persist(fresh)
     return fresh
@@ -135,6 +146,45 @@ class Store {
 
   setShowControlIndicator(show: boolean): void {
     this.data.showControlIndicator = show
+    this.persist()
+  }
+
+  getKeepInBackground(): boolean {
+    return this.data.keepInBackground
+  }
+
+  setKeepInBackground(keep: boolean): void {
+    this.data.keepInBackground = keep
+    this.persist()
+  }
+
+  /** Este computador (o controlado) confia em quem apresentar o segredo combinado antes. */
+  checkControlTrust(peerId: string, token: string | undefined): boolean {
+    const expected = this.data.controlTrust[peerId]
+    if (!expected || typeof token !== 'string') return false
+    const a = Buffer.from(expected)
+    const b = Buffer.from(token)
+    return a.length === b.length && timingSafeEqual(a, b)
+  }
+
+  addControlTrust(peerId: string): string {
+    const token = randomUUID() + randomUUID()
+    this.data.controlTrust[peerId] = token
+    this.persist()
+    return token
+  }
+
+  clearControlTrust(): void {
+    this.data.controlTrust = {}
+    this.persist()
+  }
+
+  getControlToken(peerId: string): string | null {
+    return this.data.controlTokens[peerId] ?? null
+  }
+
+  setControlToken(peerId: string, token: string): void {
+    this.data.controlTokens[peerId] = token
     this.persist()
   }
 

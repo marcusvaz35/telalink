@@ -122,12 +122,12 @@ export type RemoteInputEvent =
 /** Mensagens do canal de controle (RTCDataChannel) entre quem vê e quem compartilha. */
 export type ControlMessage =
   | { t: 'hello'; platform: DeviceType }
-  | { t: 'request' }
+  | { t: 'request'; token?: string }
   | { t: 'release' }
   | { t: 'screens-request' }
   | { t: 'screens'; screens: ScreenChoice[]; current: string }
   | { t: 'switch-screen'; id: string }
-  | { t: 'state'; state: 'granted' | 'denied' | 'revoked' | 'unavailable'; reason?: string }
+  | { t: 'state'; state: 'granted' | 'denied' | 'revoked' | 'unavailable'; reason?: string; token?: string }
   | RemoteInputEvent
 
 export interface ConnectionRole {

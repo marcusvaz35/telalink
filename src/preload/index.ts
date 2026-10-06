@@ -120,6 +120,13 @@ const api = {
     ipcRenderer.invoke('control:list-screens'),
   setControlDisplay: (requestId: string, displayId: string): Promise<void> =>
     ipcRenderer.invoke('control:set-display', requestId, displayId),
+  checkControlTrust: (peerId: string, token: string | undefined): Promise<boolean> =>
+    ipcRenderer.invoke('control:trust-check', peerId, token),
+  addControlTrust: (peerId: string): Promise<string> => ipcRenderer.invoke('control:trust-add', peerId),
+  getControlToken: (peerId: string): Promise<string | null> => ipcRenderer.invoke('control:token-get', peerId),
+  setControlToken: (peerId: string, token: string): Promise<void> =>
+    ipcRenderer.invoke('control:token-set', peerId, token),
+  showMainWindow: (): Promise<void> => ipcRenderer.invoke('app:show-main'),
   revokeControl: (requestId: string): Promise<void> => ipcRenderer.invoke('control:revoke', requestId),
   setKeyCapture: (capture: boolean): Promise<void> => ipcRenderer.invoke('control:key-capture', capture),
   revokeAllControl: (): Promise<void> => ipcRenderer.invoke('control:revoke-all'),

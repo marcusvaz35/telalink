@@ -17,7 +17,8 @@ function localPlatform(): DeviceType {
 export function useRemoteControl(
   peerSession: PeerSession,
   videoRef: RefObject<HTMLVideoElement>,
-  onNotice: (message: string) => void
+  onNotice: (message: string) => void,
+  peerId: string
 ): {
   state: RemoteControlState
   request: () => void
@@ -47,6 +48,7 @@ export function useRemoteControl(
       if (msg.t !== 'state') return
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
       if (msg.state === 'granted') {
+        if (msg.token) void window.telalink.setControlToken(peerId, msg.token)
         update('active')
         peerSession.sendControl({ t: 'screens-request' })
         onNotice('Controle liberado. Clique em "Parar controle" pra sair.')
@@ -64,20 +66,22 @@ export function useRemoteControl(
     return () => {
       peerSession.onControlMessage = null
     }
-  }, [peerSession, update, onNotice])
+  }, [peerSession, update, onNotice, peerId])
 
   const request = useCallback(() => {
     if (stateRef.current !== 'idle') return
     update('requesting')
     peerSession.sendControl({ t: 'hello', platform: localPlatform() })
-    peerSession.sendControl({ t: 'request' })
+    void window.telalink.getControlToken(peerId).then((token) => {
+      peerSession.sendControl({ t: 'request', token: token ?? undefined })
+    })
     timeoutRef.current = setTimeout(() => {
       if (stateRef.current === 'requesting') {
         update('idle')
         onNotice('O outro computador não respondeu ao pedido de controle.')
       }
     }, REQUEST_TIMEOUT_MS)
-  }, [peerSession, update, onNotice])
+  }, [peerSession, update, onNotice, peerId])
 
   const stop = useCallback(() => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current)

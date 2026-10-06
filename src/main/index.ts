@@ -1,4 +1,4 @@
-import { app, BrowserWindow, desktopCapturer, ipcMain, dialog, Menu, screen, shell } from 'electron'
+import { app, BrowserWindow, desktopCapturer, ipcMain, dialog, Menu, nativeImage, screen, shell, Tray } from 'electron'
 import { join } from 'path'
 import { writeFile } from 'fs/promises'
 import { is } from './platform'
@@ -19,6 +19,44 @@ if (process.env['TELALINK_DEBUG_PORT']) {
 }
 
 let mainWindow: BrowserWindow | null = null
+let tray: Tray | null = null
+let isQuitting = false
+
+// Com o app em segundo plano na bandeja, abrir o programa de novo deve trazer
+// a janela de volta em vez de iniciar uma segunda cópia.
+const hasInstanceLock = app.requestSingleInstanceLock()
+if (!hasInstanceLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => showMainWindow())
+}
+
+function showMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow()
+    return
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
+
+function createTray(): void {
+  if (process.platform !== 'win32' || tray) return
+  const iconPath = app.isPackaged
+    ? join(process.resourcesPath, 'resources', 'tray.png')
+    : join(__dirname, '../../resources/tray.png')
+  tray = new Tray(nativeImage.createFromPath(iconPath))
+  tray.setToolTip('TelaLink')
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Abrir TelaLink', click: () => showMainWindow() },
+      { type: 'separator' },
+      { label: 'Sair', click: () => app.quit() }
+    ])
+  )
+  tray.on('click', () => showMainWindow())
+}
 const viewerWindows = new Map<string, BrowserWindow>()
 const textureSenders = new Map<
   string,
@@ -67,6 +105,12 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => mainWindow?.show())
+  mainWindow.on('close', (event) => {
+    if (process.platform === 'win32' && !isQuitting && store.getKeepInBackground()) {
+      event.preventDefault()
+      mainWindow?.hide()
+    }
+  })
   mainWindow.on('closed', () => {
     mainWindow = null
   })
@@ -166,7 +210,10 @@ async function bootstrapNetworking(): Promise<void> {
 
   discovery.on('update', (list) => broadcast('devices:update', list))
 
-  signaling.on('incoming-request', (payload) => broadcast('signal:incoming-request', payload))
+  signaling.on('incoming-request', (payload) => {
+    showMainWindow()
+    broadcast('signal:incoming-request', payload)
+  })
   signaling.on('auto-accepted', (payload) => broadcast('signal:auto-accepted', payload))
   signaling.on('message', (msg: SignalMessage) => {
     const queue = pendingSignalMessages.get(msg.requestId)
@@ -360,6 +407,15 @@ function registerIpc(): void {
       remoteControl.grant(requestId, displayId, viewerPlatform, String(peerName).slice(0, 80))
   )
   ipcMain.handle('control:revoke', (_e, requestId: string) => remoteControl.revoke(requestId))
+  ipcMain.handle('control:trust-check', (_e, peerId: string, token: string | undefined) =>
+    store.checkControlTrust(String(peerId), token)
+  )
+  ipcMain.handle('control:trust-add', (_e, peerId: string) => store.addControlTrust(String(peerId)))
+  ipcMain.handle('control:token-get', (_e, peerId: string) => store.getControlToken(String(peerId)))
+  ipcMain.handle('control:token-set', (_e, peerId: string, token: string) =>
+    store.setControlToken(String(peerId), String(token))
+  )
+  ipcMain.handle('app:show-main', () => showMainWindow())
   ipcMain.handle('control:set-display', (_e, requestId: string, displayId: string) =>
     remoteControl.setDisplay(requestId, String(displayId))
   )
@@ -443,6 +499,7 @@ function buildAppMenu(): void {
           }
         ]
       : []),
+    ...(isMac ? [] : [{ label: 'Arquivo', submenu: [{ role: 'quit' as const, label: 'Sair do TelaLink' }] }]),
     { role: 'editMenu' },
     { role: 'windowMenu' },
     {
@@ -451,6 +508,30 @@ function buildAppMenu(): void {
         { label: `TelaLink v${app.getVersion()}`, enabled: false },
         { type: 'separator' },
         checkItem,
+        { type: 'separator' },
+        ...(process.platform === 'win32'
+          ? [
+              { type: 'separator' as const },
+              {
+                label: 'Manter em segundo plano ao fechar a janela',
+                type: 'checkbox' as const,
+                checked: store.getKeepInBackground(),
+                click: (item: Electron.MenuItem) => store.setKeepInBackground(item.checked)
+              }
+            ]
+          : []),
+        { type: 'separator' },
+        {
+          label: 'Apagar computadores confiáveis do controle remoto',
+          click: () => {
+            store.clearControlTrust()
+            void dialog.showMessageBox({
+              type: 'info',
+              message: 'Pronto: nenhum computador está mais autorizado a controlar este automaticamente.',
+              buttons: ['OK']
+            })
+          }
+        },
         { type: 'separator' },
         {
           label: 'Mostrar faixa de aviso durante o controle remoto',
@@ -468,9 +549,11 @@ function buildAppMenu(): void {
 }
 
 app.whenReady().then(async () => {
+  if (!hasInstanceLock) return
   buildAppMenu()
   registerIpc()
   createWindow()
+  createTray()
   await bootstrapNetworking()
 
   app.on('activate', () => {
@@ -498,6 +581,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  isQuitting = true
   remoteControl.revokeAll()
   discovery.stop()
   signaling?.stop()

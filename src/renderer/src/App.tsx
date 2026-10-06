@@ -51,6 +51,13 @@ function requestConnectionFor(target: DiscoveredDevice, kind: 'share-offer' | 'v
     : window.telalink.requestConnection(target.id, kind)
 }
 
+interface ControlRequestInfo {
+  requestId: string
+  peerId: string
+  peerName: string
+  displayId: string
+}
+
 type View = 'home' | 'share-setup' | 'receive' | 'sharing' | 'web-share'
 
 interface PendingOutgoing {
@@ -97,10 +104,11 @@ export default function App(): JSX.Element {
 
   const [appVersion, setAppVersion] = useState('')
   const [checkingUpdate, setCheckingUpdate] = useState(false)
-  const [controlRequest, setControlRequest] = useState<{ requestId: string; peerName: string; displayId: string } | null>(null)
+  const [controlRequest, setControlRequest] = useState<ControlRequestInfo | null>(null)
   const [controlActiveFor, setControlActiveFor] = useState<string | null>(null)
   const controlActiveRef = useRef<string | null>(null)
   const viewerPlatforms = useRef(new Map<string, DeviceType>())
+  const grantControlRef = useRef<((info: ControlRequestInfo, remember: boolean) => Promise<void>) | null>(null)
 
   const peerSessions = useRef(new Map<string, PeerSession>())
   const pendingOutgoing = useRef<PendingOutgoing | null>(null)
@@ -189,7 +197,21 @@ export default function App(): JSX.Element {
                 reason: 'Só dá pra controlar quando uma tela inteira está sendo compartilhada (não uma janela).'
               })
             } else {
-              setControlRequest({ requestId, peerName: target.name, displayId: source.displayId })
+              const info: ControlRequestInfo = {
+                requestId,
+                peerId: target.id,
+                peerName: target.name,
+                displayId: source.displayId
+              }
+              // Quem já foi marcado como confiável apresenta o segredo combinado e entra direto.
+              void window.telalink.checkControlTrust(target.id, msg.token).then((trusted) => {
+                if (trusted) {
+                  void grantControlRef.current?.(info, false)
+                } else {
+                  void window.telalink.showMainWindow()
+                  setControlRequest(info)
+                }
+              })
             }
           } else if (msg.t === 'release') {
             void window.telalink.revokeControl(requestId)
@@ -426,29 +448,35 @@ export default function App(): JSX.Element {
     setPickingSourceFor(null)
   }
 
-  const handleControlDecision = async (allow: boolean): Promise<void> => {
-    const request = controlRequest
-    if (!request) return
-    setControlRequest(null)
-    const session = peerSessions.current.get(request.requestId)
-    if (!allow) {
-      session?.sendControl({ t: 'state', state: 'denied' })
-      return
-    }
+  const grantControl = async (info: ControlRequestInfo, remember: boolean): Promise<void> => {
+    const session = peerSessions.current.get(info.requestId)
     const result = await window.telalink.grantControl(
-      request.requestId,
-      request.displayId,
-      viewerPlatforms.current.get(request.requestId) ?? 'unknown',
-      request.peerName
+      info.requestId,
+      info.displayId,
+      viewerPlatforms.current.get(info.requestId) ?? 'unknown',
+      info.peerName
     )
     if (result.ok) {
-      controlActiveRef.current = request.requestId
-      setControlActiveFor(request.requestId)
-      session?.sendControl({ t: 'state', state: 'granted' })
+      const token = remember ? await window.telalink.addControlTrust(info.peerId) : undefined
+      controlActiveRef.current = info.requestId
+      setControlActiveFor(info.requestId)
+      session?.sendControl({ t: 'state', state: 'granted', token })
     } else {
       session?.sendControl({ t: 'state', state: 'unavailable', reason: result.reason })
       notify(result.reason ?? 'Não foi possível liberar o controle.', 'error')
     }
+  }
+  grantControlRef.current = grantControl
+
+  const handleControlDecision = async (choice: 'deny' | 'once' | 'always'): Promise<void> => {
+    const request = controlRequest
+    if (!request) return
+    setControlRequest(null)
+    if (choice === 'deny') {
+      peerSessions.current.get(request.requestId)?.sendControl({ t: 'state', state: 'denied' })
+      return
+    }
+    await grantControl(request, choice === 'always')
   }
 
   const handleStopSharing = (): void => {
@@ -600,7 +628,7 @@ export default function App(): JSX.Element {
       )}
 
       {controlRequest && (
-        <ControlRequestModal peerName={controlRequest.peerName} onDecide={(allow) => void handleControlDecision(allow)} />
+        <ControlRequestModal peerName={controlRequest.peerName} onDecide={(choice) => void handleControlDecision(choice)} />
       )}
 
       {toast && <Toast message={toast.message} tone={toast.tone} />}

@@ -1,6 +1,6 @@
 interface ControlRequestModalProps {
   peerName: string
-  onDecide: (allow: boolean) => void
+  onDecide: (choice: 'deny' | 'once' | 'always') => void
 }
 
 export function ControlRequestModal({ peerName, onDecide }: ControlRequestModalProps): JSX.Element {
@@ -13,14 +13,17 @@ export function ControlRequestModal({ peerName, onDecide }: ControlRequestModalP
           você conhece e confia nessa pessoa.
         </p>
         <p style={{ fontSize: 12, color: 'var(--tl-text-faint)', lineHeight: 1.5, marginBottom: 16 }}>
-          Você pode encerrar a qualquer momento pelo botão "Parar controle" ou com Ctrl/Cmd + Alt + Shift + X.
+          Se confiar, nas próximas vezes ele entra direto, sem perguntar. Você encerra a qualquer momento com Ctrl/Cmd + Alt + Shift + X (e pode apagar as confianças em Ajuda).
         </p>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button className="tl-btn tl-btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => onDecide(false)}>
-            Negar
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <button className="tl-btn tl-btn-primary" style={{ justifyContent: 'center' }} onClick={() => onDecide('always')}>
+            Permitir sempre (confiar neste computador)
           </button>
-          <button className="tl-btn tl-btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => onDecide(true)}>
-            Permitir
+          <button className="tl-btn tl-btn-secondary" style={{ justifyContent: 'center' }} onClick={() => onDecide('once')}>
+            Permitir só desta vez
+          </button>
+          <button className="tl-btn tl-btn-ghost" style={{ justifyContent: 'center' }} onClick={() => onDecide('deny')}>
+            Negar
           </button>
         </div>
       </div>

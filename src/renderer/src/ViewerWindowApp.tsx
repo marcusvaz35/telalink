@@ -72,6 +72,7 @@ export function ViewerWindowApp({ requestId, peer }: ViewerWindowAppProps): JSX.
       remoteStream={remoteStream}
       peerSession={sessionRef.current as PeerSession}
       peerName={peer.name}
+      peerId={peer.id}
       onSwap={handleSwap}
       onDisconnect={handleDisconnect}
     />
