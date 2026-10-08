@@ -126,6 +126,7 @@ const api = {
   getControlToken: (peerId: string): Promise<string | null> => ipcRenderer.invoke('control:token-get', peerId),
   setControlToken: (peerId: string, token: string): Promise<void> =>
     ipcRenderer.invoke('control:token-set', peerId, token),
+  keepAwake: (on: boolean): Promise<void> => ipcRenderer.invoke('power:keep-awake', on),
   showMainWindow: (): Promise<void> => ipcRenderer.invoke('app:show-main'),
   revokeControl: (requestId: string): Promise<void> => ipcRenderer.invoke('control:revoke', requestId),
   setKeyCapture: (capture: boolean): Promise<void> => ipcRenderer.invoke('control:key-capture', capture),

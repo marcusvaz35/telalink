@@ -236,6 +236,12 @@ export default function App(): JSX.Element {
     [notify]
   )
 
+  // Mantém a tela do computador acordada enquanto está compartilhando (ou em link web).
+  const isSharingNow = sharing !== null || webShare !== null
+  useEffect(() => {
+    void window.telalink.keepAwake(isSharingNow)
+  }, [isSharingNow])
+
   // bootstrap: device info + discovery + sinalização
   useEffect(() => {
     window.telalink.getDevice().then(setDevice)

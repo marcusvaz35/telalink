@@ -1,4 +1,16 @@
-import { app, BrowserWindow, desktopCapturer, ipcMain, dialog, Menu, nativeImage, screen, shell, Tray } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  desktopCapturer,
+  ipcMain,
+  dialog,
+  Menu,
+  nativeImage,
+  powerSaveBlocker,
+  screen,
+  shell,
+  Tray
+} from 'electron'
 import { join } from 'path'
 import { writeFile } from 'fs/promises'
 import { is } from './platform'
@@ -16,6 +28,26 @@ import type { DeviceInfo, DeviceType, RemoteInputEvent, RequestKind, ScreenSourc
 
 if (process.env['TELALINK_DEBUG_PORT']) {
   app.commandLine.appendSwitch('remote-debugging-port', process.env['TELALINK_DEBUG_PORT'])
+}
+
+// Quem compartilha a tela precisa continuar entregando quadros mesmo com a
+// janela escondida/coberta ou sem ninguém mexendo no computador: sem isso o
+// Chromium reduz a captura de janelas em segundo plano.
+app.commandLine.appendSwitch('disable-renderer-backgrounding')
+app.commandLine.appendSwitch('disable-background-timer-throttling')
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
+
+let keepAwakeId: number | null = null
+
+/** Impede a tela/o sistema de entrar em repouso enquanto há compartilhamento ativo. */
+function setKeepAwake(on: boolean): void {
+  if (on && keepAwakeId === null) {
+    keepAwakeId = powerSaveBlocker.start('prevent-display-sleep')
+  } else if (!on && keepAwakeId !== null) {
+    powerSaveBlocker.stop(keepAwakeId)
+    keepAwakeId = null
+  }
 }
 
 let mainWindow: BrowserWindow | null = null
@@ -100,7 +132,8 @@ function createWindow(): void {
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      backgroundThrottling: false
     }
   })
 
@@ -416,6 +449,7 @@ function registerIpc(): void {
     store.setControlToken(String(peerId), String(token))
   )
   ipcMain.handle('app:show-main', () => showMainWindow())
+  ipcMain.handle('power:keep-awake', (_e, on: boolean) => setKeepAwake(!!on))
   ipcMain.handle('control:set-display', (_e, requestId: string, displayId: string) =>
     remoteControl.setDisplay(requestId, String(displayId))
   )
@@ -582,6 +616,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   isQuitting = true
+  setKeepAwake(false)
   remoteControl.revokeAll()
   discovery.stop()
   signaling?.stop()
